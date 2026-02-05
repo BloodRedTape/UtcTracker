@@ -152,24 +152,27 @@ def get_events(
 ) -> tuple[list[StatusEvent], int]:
     """Return (events, total_count) with optional date filtering and pagination."""
     conn = _get_conn()
-    where = ["user_id = ?"]
+    where_clauses = ["user_id = ?"]
     params: list = [user_id]
     if from_date:
-        where.append("timestamp_utc >= ?")
+        where_clauses.append("timestamp_utc >= ?")
         params.append(from_date)
     if to_date:
-        where.append("timestamp_utc <= ?")
+        where_clauses.append("timestamp_utc <= ?")
         params.append(to_date)
-    where_sql = " AND ".join(where)
 
+    # Build WHERE clause safely
+    where_sql = " AND ".join(where_clauses)
+
+    # Use parameterized queries throughout
     total = conn.execute(
-        f"SELECT COUNT(*) FROM events WHERE {where_sql}", params
+        "SELECT COUNT(*) FROM events WHERE " + where_sql, params
     ).fetchone()[0]
 
     rows = conn.execute(
-        f"SELECT timestamp_utc, status, raw_status_type FROM events "
-        f"WHERE {where_sql} ORDER BY timestamp_utc "
-        f"LIMIT ? OFFSET ?",
+        "SELECT timestamp_utc, status, raw_status_type FROM events "
+        "WHERE " + where_sql + " ORDER BY timestamp_utc "
+        "LIMIT ? OFFSET ?",
         params + [limit, offset],
     ).fetchall()
 
@@ -225,18 +228,19 @@ def get_sleep_periods(
     to_date: Optional[str] = None,
 ) -> list[SleepPeriod]:
     conn = _get_conn()
-    where = ["user_id = ?"]
+    where_clauses = ["user_id = ?"]
     params: list = [user_id]
     if from_date:
-        where.append("date >= ?")
+        where_clauses.append("date >= ?")
         params.append(from_date)
     if to_date:
-        where.append("date <= ?")
+        where_clauses.append("date <= ?")
         params.append(to_date)
 
+    where_sql = " AND ".join(where_clauses)
     rows = conn.execute(
-        f"SELECT offline_at_utc, online_at_utc, gap_hours, estimated_tz_offset, date "
-        f"FROM sleep_periods WHERE {' AND '.join(where)} ORDER BY date",
+        "SELECT offline_at_utc, online_at_utc, gap_hours, estimated_tz_offset, date "
+        "FROM sleep_periods WHERE " + where_sql + " ORDER BY date",
         params,
     ).fetchall()
     return [SleepPeriod(r["offline_at_utc"], r["online_at_utc"], r["gap_hours"],
@@ -262,18 +266,19 @@ def get_daily_timezones(
     to_date: Optional[str] = None,
 ) -> list[DayTimezone]:
     conn = _get_conn()
-    where = ["user_id = ?"]
+    where_clauses = ["user_id = ?"]
     params: list = [user_id]
     if from_date:
-        where.append("date >= ?")
+        where_clauses.append("date >= ?")
         params.append(from_date)
     if to_date:
-        where.append("date <= ?")
+        where_clauses.append("date <= ?")
         params.append(to_date)
 
+    where_sql = " AND ".join(where_clauses)
     rows = conn.execute(
-        f"SELECT date, offset_hours, wakeup_utc FROM daily_timezones "
-        f"WHERE {' AND '.join(where)} ORDER BY date",
+        "SELECT date, offset_hours, wakeup_utc FROM daily_timezones "
+        "WHERE " + where_sql + " ORDER BY date",
         params,
     ).fetchall()
     return [DayTimezone(r["date"], r["offset_hours"], r["wakeup_utc"]) for r in rows]

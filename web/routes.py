@@ -4,9 +4,10 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, HTTPException, status
 
 from core import storage
+from web.security import validate_user_id, validate_date_format, validate_pagination
 
 
 def _format_tz(offset: Optional[float]) -> str:
@@ -46,9 +47,13 @@ def create_router() -> APIRouter:
 
     @router.get("/users/{user_id}")
     async def get_user(user_id: int):
+        validate_user_id(user_id)
         user = storage.get_user(user_id)
         if user is None:
-            return {"error": "User not found"}
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
         return _user_summary(user)
 
     @router.get("/users/{user_id}/events")
@@ -59,9 +64,19 @@ def create_router() -> APIRouter:
         page: int = Query(1, ge=1),
         per_page: int = Query(200, ge=1, le=1000),
     ):
+        validate_user_id(user_id)
+        validate_pagination(page, per_page)
+        if from_date:
+            validate_date_format(from_date, "from")
+        if to_date:
+            validate_date_format(to_date, "to")
+
         user = storage.get_user(user_id)
         if user is None:
-            return {"error": "User not found"}
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
 
         offset = (page - 1) * per_page
         events, total = storage.get_events(user_id, from_date, to_date, per_page, offset)
@@ -79,6 +94,12 @@ def create_router() -> APIRouter:
         from_date: Optional[str] = Query(None, alias="from"),
         to_date: Optional[str] = Query(None, alias="to"),
     ):
+        validate_user_id(user_id)
+        if from_date:
+            validate_date_format(from_date, "from")
+        if to_date:
+            validate_date_format(to_date, "to")
+
         periods = storage.get_sleep_periods(user_id, from_date, to_date)
         return [asdict(sp) for sp in periods]
 
@@ -88,6 +109,12 @@ def create_router() -> APIRouter:
         from_date: Optional[str] = Query(None, alias="from"),
         to_date: Optional[str] = Query(None, alias="to"),
     ):
+        validate_user_id(user_id)
+        if from_date:
+            validate_date_format(from_date, "from")
+        if to_date:
+            validate_date_format(to_date, "to")
+
         history = storage.get_daily_timezones(user_id, from_date, to_date)
         return [asdict(dt) for dt in history]
 
@@ -96,9 +123,13 @@ def create_router() -> APIRouter:
         user_id: int,
         days: int = Query(30, ge=1, le=365),
     ):
+        validate_user_id(user_id)
         user = storage.get_user(user_id)
         if user is None:
-            return {"error": "User not found"}
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
 
         daily_tzs = storage.get_daily_timezones(user_id)
         sleep_periods = storage.get_sleep_periods(user_id)

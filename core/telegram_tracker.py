@@ -70,7 +70,35 @@ class TelegramTracker:
 
     async def connect(self):
         """Start the Telethon client and resolve tracked users."""
-        await self.client.start()
+        use_qr_login = self.config.get("telegram", {}).get("use_qr_login", False)
+
+        if use_qr_login:
+            # QR code authentication - more reliable for automation
+            await self.client.connect()
+
+            if not await self.client.is_user_authorized():
+                log.info("Not authorized. Starting QR code login...")
+                qr_login = await self.client.qr_login()
+
+                # Display the QR code URL for the user to scan
+                log.info("Please scan this QR code with your Telegram mobile app:")
+                log.info("QR Code URL: %s", qr_login.url)
+                print("\n" + "="*60)
+                print("SCAN THIS QR CODE WITH YOUR TELEGRAM MOBILE APP:")
+                print(qr_login.url)
+                print("="*60 + "\n")
+
+                # Wait for the user to scan the QR code
+                try:
+                    await qr_login.wait()
+                    log.info("Successfully authenticated via QR code!")
+                except asyncio.TimeoutError:
+                    log.error("QR code expired. Please restart to try again.")
+                    raise
+        else:
+            # Default phone-based authentication
+            await self.client.start()
+
         log.info("Telegram client connected")
 
         for user_cfg in self.config.get("tracked_users", []):
