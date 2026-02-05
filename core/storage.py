@@ -128,7 +128,7 @@ def append_event(user_id: int, event: StatusEvent) -> bool:
         "SELECT timestamp_utc, status FROM events WHERE user_id = ? ORDER BY id DESC LIMIT 1",
         (user_id,),
     ).fetchone()
-    if last and last["timestamp_utc"] == event.timestamp_utc and last["status"] == event.status:
+    if last and last["status"] == event.status:
         return False
 
     conn.execute(

@@ -155,6 +155,10 @@ def create_router() -> APIRouter:
         while i < len(all_events):
             if all_events[i].status == "online":
                 start = all_events[i].timestamp_utc
+                # Skip consecutive online events (keep the first as start)
+                while i + 1 < len(all_events) and all_events[i + 1].status == "online":
+                    i += 1
+                # Now find the end
                 if i + 1 < len(all_events) and all_events[i + 1].status == "offline":
                     end = all_events[i + 1].timestamp_utc
                     i += 2
