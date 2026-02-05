@@ -121,27 +121,48 @@ def update_user_tz(user_id: int, offset: float) -> None:
 # ── Events ─────────────────────────────────────────────
 
 def append_event(user_id: int, event: StatusEvent) -> bool:
-    """Insert event. Returns False if duplicate (same ts+status)."""
     conn = _get_conn()
-    # Deduplicate: skip if last event is identical
-    last = conn.execute(
-        "SELECT timestamp_utc, status FROM events WHERE user_id = ? ORDER BY id DESC LIMIT 1",
-        (user_id,),
-    ).fetchone()
-    if last and last["status"] == event.status:
-        return False
+    cur = conn.cursor()
 
-    conn.execute(
-        "INSERT INTO events(user_id, timestamp_utc, status, raw_status_type) VALUES (?, ?, ?, ?)",
-        (user_id, event.timestamp_utc, event.status, event.raw_status_type),
-    )
-    conn.execute(
-        "UPDATE users SET current_status = ? WHERE user_id = ?",
-        (event.status, user_id),
-    )
+    # Получаем последние 2 события
+    cur.execute("""
+        SELECT id, status 
+        FROM events 
+        WHERE user_id = ? 
+        ORDER BY id DESC 
+        LIMIT 2
+    """, (user_id,))
+    rows = cur.fetchall() # [(id_last, status_last), (id_prev, status_prev)]
+
+    should_insert = True
+
+    # Если есть хотя бы 2 записи
+    if len(rows) == 2:
+        last_id, last_status = rows[0]
+        prev_id, prev_status = rows[1]
+
+        # Если новый статус совпадает с последним И предпоследним
+        # Значит, "последний" (last_id) - это просто промежуточная точка, 
+        # и её можно просто ОБНОВИТЬ (сдвинуть время), а не вставлять новую.
+        if event.status == last_status == prev_status:
+            cur.execute("""
+                UPDATE events 
+                SET timestamp_utc = ?, raw_status_type = ? 
+                WHERE id = ?
+            """, (event.timestamp_utc, event.raw_status_type, last_id))
+            should_insert = False
+
+    if should_insert:
+        cur.execute(
+            "INSERT INTO events(user_id, timestamp_utc, status, raw_status_type) VALUES (?, ?, ?, ?)",
+            (user_id, event.timestamp_utc, event.status, event.raw_status_type),
+        )
+
+    # Обновляем юзера
+    cur.execute("UPDATE users SET current_status = ? WHERE user_id = ?", (event.status, user_id))
+    
     conn.commit()
     return True
-
 
 def get_events(
     user_id: int,
