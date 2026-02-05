@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.session
+*.session-journal
+*.db
+*.db-wal
+*.db-shm
+.venv/
+venv/
+
+# run_tree contains sensitive config — keep the dir but ignore runtime data
+run_tree/

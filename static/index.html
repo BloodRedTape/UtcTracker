@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NickUtc - Timezone Tracker</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3"></script>
+</head>
+<body>
+    <header>
+        <h1>NickUtc</h1>
+        <span class="subtitle">Telegram Timezone Tracker</span>
+        <div class="header-actions">
+            <label class="auto-refresh">
+                <input type="checkbox" id="autoRefresh" checked>
+                Auto-refresh
+            </label>
+            <span id="lastUpdated" class="last-updated"></span>
+        </div>
+    </header>
+
+    <main>
+        <section id="usersSection">
+            <h2>Tracked Users</h2>
+            <table id="usersTable">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Name</th>
+                        <th>Username</th>
+                        <th>Timezone</th>
+                        <th>Last Seen</th>
+                        <th>Events</th>
+                    </tr>
+                </thead>
+                <tbody id="usersBody">
+                    <tr><td colspan="6" class="loading">Loading...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="detailSection" class="hidden">
+            <div class="detail-header">
+                <div class="user-info">
+                    <h2 id="detailName"></h2>
+                    <span id="detailUsername" class="username"></span>
+                </div>
+                <div class="tz-display">
+                    <span id="detailTz" class="tz-big"></span>
+                    <span id="detailStatus" class="status-badge"></span>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <h3>Activity Timeline (last 48h)</h3>
+                    <div class="chart-container">
+                        <canvas id="timelineChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Timezone History</h3>
+                    <div class="chart-container">
+                        <canvas id="tzHistoryChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Wake-up Pattern (UTC)</h3>
+                    <div class="chart-container">
+                        <canvas id="wakeupChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sleep-table-section">
+                <h3>Sleep Periods</h3>
+                <table id="sleepTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Fell Asleep (UTC)</th>
+                            <th>Woke Up (UTC)</th>
+                            <th>Duration</th>
+                            <th>Est. Timezone</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sleepBody"></tbody>
+                </table>
+            </div>
+
+            <div class="tz-table-section">
+                <h3>Daily Timezone Estimates</h3>
+                <table id="tzTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Timezone</th>
+                            <th>Wakeup (UTC)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tzBody"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/charts.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
