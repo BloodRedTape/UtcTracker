@@ -21,3 +21,14 @@ Telegram user online-status tracker. Monitors when users go online/offline, dete
 - Deduplication: consecutive events with the same status are skipped
 - Online periods are computed by pairing online→offline events
 - Polling interval and sleep thresholds are configurable via `config.json`
+
+## Timezone handling
+
+- **Backend**: all timestamps stored and transmitted in UTC (ISO format with `Z` suffix)
+- **Frontend**: displays all times in user's local browser timezone
+  - `timeAgo()` — calculates relative time correctly using UTC timestamps
+  - `formatDateTime()` — converts UTC to local timezone for display
+  - System clock in header shows local time with timezone indicator
+- **Computed user timezone**: estimated from sleep patterns, displayed as `UTC+X`
+  - User's local time is calculated from UTC + their estimated offset
+  - Wake-up Pattern chart remains in UTC hours (for timezone analysis)

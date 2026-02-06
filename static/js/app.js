@@ -44,13 +44,13 @@ function timeAgo(isoStr) {
 function formatDateTime(isoStr) {
     if (!isoStr) return '-';
     const d = new Date(isoStr);
-    // Always display in UTC, explicitly show UTC time
-    const year = d.getUTCFullYear();
-    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(d.getUTCDate()).padStart(2, '0');
-    const hours = String(d.getUTCHours()).padStart(2, '0');
-    const minutes = String(d.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(d.getUTCSeconds()).padStart(2, '0');
+    // Display in local timezone
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
@@ -176,19 +176,23 @@ async function selectUser(userId) {
 
 // --- System Time Display ---
 
-function updateSystemTime() {
+function getLocalTzString() {
     const now = new Date();
-    const utcTime = now.toISOString().slice(11, 19); // HH:MM:SS
-    const localTime = now.toLocaleTimeString('en-GB', { hour12: false });
     const offsetMinutes = -now.getTimezoneOffset();
     const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
     const offsetMins = Math.abs(offsetMinutes) % 60;
     const offsetSign = offsetMinutes >= 0 ? '+' : '-';
-    const offsetStr = offsetMins > 0
+    return offsetMins > 0
         ? `UTC${offsetSign}${offsetHours}:${String(offsetMins).padStart(2, '0')}`
         : `UTC${offsetSign}${offsetHours}`;
+}
 
-    document.getElementById('lastUpdated').textContent = `UTC: ${utcTime} | Local: ${localTime} (${offsetStr})`;
+function updateSystemTime() {
+    const now = new Date();
+    const localTime = now.toLocaleTimeString('en-GB', { hour12: false });
+    const tzStr = getLocalTzString();
+
+    document.getElementById('lastUpdated').textContent = `${localTime} (${tzStr})`;
 }
 
 // --- Auto-refresh ---

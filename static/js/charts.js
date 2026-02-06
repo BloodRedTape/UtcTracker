@@ -62,9 +62,9 @@ function renderTimelineChart(onlinePeriods) {
                             const d1 = new Date(start);
                             const d2 = new Date(end);
                             const durMin = Math.round((end - start) / 60000);
-                            const startStr = d1.toISOString().slice(11, 19);
-                            const endStr = d2.toISOString().slice(11, 19);
-                            return `${startStr} - ${endStr} UTC (${durMin}m)`;
+                            const startStr = d1.toLocaleTimeString('en-GB', { hour12: false });
+                            const endStr = d2.toLocaleTimeString('en-GB', { hour12: false });
+                            return `${startStr} - ${endStr} (${durMin}m)`;
                         }
                     }
                 }
