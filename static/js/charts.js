@@ -21,9 +21,9 @@ function renderTimelineChart(onlinePeriods) {
         timelineChartInstance.destroy();
     }
 
-    // Filter to last 48 hours
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+    // Filter to last 48 hours (use UTC)
+    const nowUtc = Date.now();
+    const cutoff = new Date(nowUtc - 48 * 60 * 60 * 1000);
 
     const bars = onlinePeriods
         .map(p => ({
@@ -62,7 +62,9 @@ function renderTimelineChart(onlinePeriods) {
                             const d1 = new Date(start);
                             const d2 = new Date(end);
                             const durMin = Math.round((end - start) / 60000);
-                            return `${d1.toUTCString().slice(17, 25)} - ${d2.toUTCString().slice(17, 25)} (${durMin}m)`;
+                            const startStr = d1.toISOString().slice(11, 19);
+                            const endStr = d2.toISOString().slice(11, 19);
+                            return `${startStr} - ${endStr} UTC (${durMin}m)`;
                         }
                     }
                 }
@@ -70,9 +72,13 @@ function renderTimelineChart(onlinePeriods) {
             scales: {
                 x: {
                     type: 'time',
-                    time: { unit: 'hour', displayFormats: { hour: 'MMM d HH:mm' } },
+                    time: {
+                        unit: 'hour',
+                        displayFormats: { hour: 'MMM d HH:mm' },
+                        tooltipFormat: 'MMM d HH:mm:ss'
+                    },
                     min: cutoff.getTime(),
-                    max: now.getTime(),
+                    max: nowUtc,
                     grid: { color: '#1f1f35' },
                 },
                 y: {

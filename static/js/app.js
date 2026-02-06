@@ -14,11 +14,23 @@ function formatTz(offset) {
     return minutes ? `UTC${sign}${hours}:${minutes.toString().padStart(2, '0')}` : `UTC${sign}${hours}`;
 }
 
+function getUserLocalTime(offset) {
+    if (offset === null || offset === undefined) return 'N/A';
+    const now = new Date();
+    const utcTime = now.getTime();
+    const userTime = new Date(utcTime + offset * 60 * 60 * 1000);
+    const hours = String(userTime.getUTCHours()).padStart(2, '0');
+    const minutes = String(userTime.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(userTime.getUTCSeconds()).padStart(2, '0');
+    return `${hours}:${minutes}:${seconds}`;
+}
+
 function timeAgo(isoStr) {
     if (!isoStr) return 'Never';
-    const now = new Date();
-    const then = new Date(isoStr);
-    const diffMs = now - then;
+    // Use UTC for both to avoid timezone confusion
+    const nowUtc = Date.now();
+    const thenUtc = new Date(isoStr).getTime();
+    const diffMs = nowUtc - thenUtc;
     const diffSec = Math.floor(diffMs / 1000);
     if (diffSec < 60) return `${diffSec}s ago`;
     const diffMin = Math.floor(diffSec / 60);
@@ -32,7 +44,14 @@ function timeAgo(isoStr) {
 function formatDateTime(isoStr) {
     if (!isoStr) return '-';
     const d = new Date(isoStr);
-    return d.toISOString().replace('T', ' ').replace('Z', '').slice(0, 19);
+    // Always display in UTC, explicitly show UTC time
+    const year = d.getUTCFullYear();
+    const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    const hours = String(d.getUTCHours()).padStart(2, '0');
+    const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(d.getUTCSeconds()).padStart(2, '0');
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 function formatHours(h) {
@@ -50,8 +69,11 @@ async function fetchJSON(url) {
 
 // --- Users Table ---
 
+let cachedUsers = [];
+
 async function loadUsers() {
     const users = await fetchJSON('/api/users');
+    cachedUsers = users;
     const tbody = document.getElementById('usersBody');
 
     if (!users.length) {
@@ -59,18 +81,24 @@ async function loadUsers() {
         return;
     }
 
-    tbody.innerHTML = users.map(u => `
-        <tr data-uid="${u.user_id}" class="${u.user_id === selectedUserId ? 'active' : ''}" onclick="selectUser(${u.user_id})">
-            <td><span class="status-dot ${u.current_status || 'offline'}"></span>${u.current_status || 'unknown'}</td>
-            <td>${escapeHtml(u.label)}</td>
-            <td>${u.username ? '@' + escapeHtml(u.username) : '-'}</td>
-            <td class="tz-offset">${u.timezone_display}</td>
-            <td>${timeAgo(u.last_event_utc)}</td>
-            <td>${u.events_count}</td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = users.map(u => {
+        const userLocalTime = getUserLocalTime(u.current_tz_offset);
+        const tzDisplay = u.timezone_display !== 'N/A'
+            ? `${u.timezone_display}<br><span class="user-time" data-offset="${u.current_tz_offset}">${userLocalTime}</span>`
+            : 'N/A';
+        return `
+            <tr data-uid="${u.user_id}" class="${u.user_id === selectedUserId ? 'active' : ''}" onclick="selectUser(${u.user_id})">
+                <td><span class="status-dot ${u.current_status || 'offline'}"></span>${u.current_status || 'unknown'}</td>
+                <td>${escapeHtml(u.label)}</td>
+                <td>${u.username ? '@' + escapeHtml(u.username) : '-'}</td>
+                <td class="tz-offset">${tzDisplay}</td>
+                <td>${timeAgo(u.last_event_utc)}</td>
+                <td>${u.events_count}</td>
+            </tr>
+        `;
+    }).join('');
 
-    document.getElementById('lastUpdated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+    updateSystemTime();
 }
 
 function escapeHtml(str) {
@@ -104,7 +132,13 @@ async function selectUser(userId) {
     // Update header
     document.getElementById('detailName').textContent = user.label;
     document.getElementById('detailUsername').textContent = user.username ? '@' + user.username : '';
-    document.getElementById('detailTz').textContent = user.timezone_display || 'N/A';
+
+    cachedUserOffset = user.current_tz_offset;
+    const userLocalTime = getUserLocalTime(user.current_tz_offset);
+    const tzText = user.timezone_display !== 'N/A'
+        ? `${user.timezone_display} • ${userLocalTime}`
+        : 'N/A';
+    document.getElementById('detailTz').textContent = tzText;
 
     const statusBadge = document.getElementById('detailStatus');
     statusBadge.textContent = user.current_status || 'unknown';
@@ -140,6 +174,23 @@ async function selectUser(userId) {
     `).join('') || '<tr><td colspan="3" class="loading">No timezone data yet</td></tr>';
 }
 
+// --- System Time Display ---
+
+function updateSystemTime() {
+    const now = new Date();
+    const utcTime = now.toISOString().slice(11, 19); // HH:MM:SS
+    const localTime = now.toLocaleTimeString('en-GB', { hour12: false });
+    const offsetMinutes = -now.getTimezoneOffset();
+    const offsetHours = Math.floor(Math.abs(offsetMinutes) / 60);
+    const offsetMins = Math.abs(offsetMinutes) % 60;
+    const offsetSign = offsetMinutes >= 0 ? '+' : '-';
+    const offsetStr = offsetMins > 0
+        ? `UTC${offsetSign}${offsetHours}:${String(offsetMins).padStart(2, '0')}`
+        : `UTC${offsetSign}${offsetHours}`;
+
+    document.getElementById('lastUpdated').textContent = `UTC: ${utcTime} | Local: ${localTime} (${offsetStr})`;
+}
+
 // --- Auto-refresh ---
 
 function setupAutoRefresh() {
@@ -154,6 +205,28 @@ function setupAutoRefresh() {
     startRefresh();
 }
 
+function updateUserLocalTimes() {
+    // Update local times in the users table
+    document.querySelectorAll('#usersTable .user-time').forEach(timeSpan => {
+        const offset = parseFloat(timeSpan.dataset.offset);
+        if (!isNaN(offset)) {
+            timeSpan.textContent = getUserLocalTime(offset);
+        }
+    });
+
+    // Update local time in detail header
+    const detailTz = document.getElementById('detailTz');
+    if (detailTz && selectedUserId && cachedUserOffset !== null) {
+        const userLocalTime = getUserLocalTime(cachedUserOffset);
+        const tzParts = detailTz.textContent.split(' • ');
+        if (tzParts.length === 2) {
+            detailTz.textContent = `${tzParts[0]} • ${userLocalTime}`;
+        }
+    }
+}
+
+let cachedUserOffset = null;
+
 function startRefresh() {
     stopRefresh();
     refreshTimer = setInterval(async () => {
@@ -162,6 +235,12 @@ function startRefresh() {
             await selectUser(selectedUserId);
         }
     }, 60000);
+
+    // Update system time and user local times every second
+    setInterval(() => {
+        updateSystemTime();
+        updateUserLocalTimes();
+    }, 1000);
 }
 
 function stopRefresh() {
@@ -174,6 +253,7 @@ function stopRefresh() {
 // --- Init ---
 
 document.addEventListener('DOMContentLoaded', async () => {
+    updateSystemTime();
     await loadUsers();
     setupAutoRefresh();
 });
