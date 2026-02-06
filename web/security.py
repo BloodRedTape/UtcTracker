@@ -16,7 +16,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Simple in-memory rate limiter.
     Tracks requests per IP address with a sliding window.
     """
-    def __init__(self, app, requests_per_minute: int = 60, requests_per_second: int = 10):
+    def __init__(self, app, requests_per_minute: int = 300, requests_per_second: int = 30):
         super().__init__(app)
         self.requests_per_minute = requests_per_minute
         self.requests_per_second = requests_per_second
