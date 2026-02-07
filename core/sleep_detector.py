@@ -104,26 +104,29 @@ def _detect_sleep_periods(
         return []
 
     # 3. Склеиваем перерывы (Merge Logic)
+    # Только для периодов, которые уже похожи на сон (>= 1 час).
+    # Короткие offline'ы (человек отложил телефон на 10 мин) не склеиваем —
+    # иначе весь день превращается в один гигантский "сон".
+    min_merge_hours = threshold_hours / 2  # период должен быть >= половины порога сна
+    candidates = [p for p in raw_periods if p["duration"] >= min_merge_hours]
+
     merged_periods = []
-    if raw_periods:
-        current_period = raw_periods[0]
-        
-        for next_period in raw_periods[1:]:
+    if candidates:
+        current_period = candidates[0]
+
+        for next_period in candidates[1:]:
             # Разрыв между концом текущего и началом следующего
             awake_gap_minutes = (next_period["start"] - current_period["end"]).total_seconds() / 60
-            
+
             if awake_gap_minutes <= max_interruption_minutes:
                 # СКЛЕИВАЕМ: Продлеваем текущий период
                 current_period["end"] = next_period["end"]
                 current_period["end_ts"] = next_period["end_ts"]
-                # Пересчитываем длительность (включая время бодрствования как часть периода сна,
-                # либо можно вычитать gap, если хочешь "чистое время сна")
                 current_period["duration"] = (current_period["end"] - current_period["start"]).total_seconds() / 3600
             else:
-                # Разрыв большой, сохраняем старый, начинаем новый
                 merged_periods.append(current_period)
                 current_period = next_period
-        
+
         merged_periods.append(current_period)
 
     # 4. Финальная фильтрация по длительности и расчет TZ
