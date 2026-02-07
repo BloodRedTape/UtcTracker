@@ -1,6 +1,10 @@
 from __future__ import annotations
+
+from collections import defaultdict
 from datetime import datetime, timedelta
-from core.models import StatusEvent, SleepPeriod
+
+from core.models import StatusEvent, SleepPeriod, DayTimezone
+from core import storage
 
 # --- Конфигурация для понимания ---
 # MIN_ONLINE_NOISE_SECONDS = 10  -> Если онлайн < 10 сек, мы считаем, что это глюк сети (удаляем)
@@ -128,3 +132,49 @@ def _detect_sleep_periods(
             ))
 
     return final_results
+
+
+def _compute_daily_timezones(sleep_periods: list[SleepPeriod]) -> list[DayTimezone]:
+    """Pick the longest sleep period per day as that day's timezone estimate."""
+    by_date: dict[str, list[SleepPeriod]] = defaultdict(list)
+    for sp in sleep_periods:
+        by_date[sp.date].append(sp)
+
+    daily: list[DayTimezone] = []
+    for date_str in sorted(by_date.keys()):
+        periods = by_date[date_str]
+        main_sleep = max(periods, key=lambda sp: sp.gap_hours)
+        daily.append(DayTimezone(
+            date=date_str,
+            offset_hours=main_sleep.estimated_tz_offset,
+            wakeup_utc=main_sleep.online_at_utc,
+        ))
+
+    return daily
+
+
+def analyze(user_id: int, config_tracking: dict) -> None:
+    """
+    Run full analysis on a user:
+    1. Load all events from DB
+    2. Detect sleep periods
+    3. Compute daily timezone estimates
+    4. Save results back to DB
+    5. Update user's current_tz_offset
+    """
+    threshold = config_tracking.get("sleep_threshold_hours", 4.0)
+    min_online = config_tracking.get("min_online_duration_seconds", 30)
+    assumed_hour = config_tracking.get("assumed_wakeup_hour", 9)
+
+    events = storage.get_all_events_for_user(user_id)
+    if not events:
+        return
+
+    sleep_periods = _detect_sleep_periods(events, threshold, min_online, assumed_hour)
+    daily_timezones = _compute_daily_timezones(sleep_periods)
+
+    storage.replace_sleep_periods(user_id, sleep_periods)
+    storage.replace_daily_timezones(user_id, daily_timezones)
+
+    if daily_timezones:
+        storage.update_user_tz(user_id, daily_timezones[-1].offset_hours)
