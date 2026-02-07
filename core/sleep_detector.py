@@ -15,6 +15,17 @@ def _parse_ts(ts: str) -> datetime:
     ts = ts.replace("Z", "+00:00")
     return datetime.fromisoformat(ts).replace(tzinfo=None)
 
+def _dedup(events: list[StatusEvent]) -> list[StatusEvent]:
+    """Collapse consecutive events with the same status, keeping the first."""
+    if not events:
+        return []
+    result = [events[0]]
+    for e in events[1:]:
+        if e.status != result[-1].status:
+            result.append(e)
+    return result
+
+
 def _filter_network_noise(events: list[StatusEvent], min_online_seconds: int) -> list[StatusEvent]:
     """
     Удаляет очень короткие периоды онлайна (технический шум).
@@ -23,8 +34,8 @@ def _filter_network_noise(events: list[StatusEvent], min_online_seconds: int) ->
     if not events:
         return []
 
-    # Сначала сортируем, чтобы логика не сломалась из-за беспорядка в БД
-    sorted_events = sorted(events, key=lambda e: e.timestamp_utc)
+    # Сначала сортируем и дедуплицируем, чтобы логика не сломалась из-за беспорядка в БД
+    sorted_events = _dedup(sorted(events, key=lambda e: e.timestamp_utc))
     filtered = []
     
     i = 0
@@ -64,8 +75,8 @@ def _detect_sleep_periods(
     max_interruption_minutes: int = 45 # Новое: "туалетный перерыв"
 ) -> list[SleepPeriod]:
     
-    # 1. Чистим технический шум
-    cleaned = _filter_network_noise(events, min_online_seconds)
+    # 1. Чистим технический шум и повторно дедуплицируем
+    cleaned = _dedup(_filter_network_noise(events, min_online_seconds))
     
     # 2. Собираем "сырые" отрезки оффлайна
     raw_periods = []
