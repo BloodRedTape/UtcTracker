@@ -25,36 +25,50 @@ function renderTimelineChart(onlinePeriods) {
     const nowUtc = Date.now();
     const cutoff = new Date(nowUtc - 48 * 60 * 60 * 1000);
 
-    const bars = onlinePeriods
-        .map(p => ({
-            x: [new Date(p.start).getTime(), new Date(p.end).getTime()],
-            y: 'Activity',
-        }))
-        .filter(b => b.x[1] > cutoff.getTime());
+    // Split periods by source
+    const sourceConfig = {
+        telegram: { label: 'Telegram', color: '#2aabee', row: 'TG' },
+        discord:  { label: 'Discord',  color: '#5865f2', row: 'DC' },
+    };
 
-    // Clamp start to cutoff
-    bars.forEach(b => {
-        if (b.x[0] < cutoff.getTime()) b.x[0] = cutoff.getTime();
-    });
+    // Check which sources are present
+    const sources = [...new Set(onlinePeriods.map(p => p.source || 'telegram'))];
+    const hasBothSources = sources.length > 1;
+
+    const datasets = [];
+    for (const source of sources) {
+        const cfg = sourceConfig[source] || { label: source, color: '#4ade80', row: source };
+        const bars = onlinePeriods
+            .filter(p => (p.source || 'telegram') === source)
+            .map(p => ({
+                x: [new Date(p.start).getTime(), new Date(p.end).getTime()],
+                y: hasBothSources ? cfg.row : 'Activity',
+            }))
+            .filter(b => b.x[1] > cutoff.getTime());
+
+        bars.forEach(b => {
+            if (b.x[0] < cutoff.getTime()) b.x[0] = cutoff.getTime();
+        });
+
+        datasets.push({
+            label: cfg.label,
+            data: bars,
+            backgroundColor: cfg.color,
+            borderRadius: 2,
+            borderSkipped: false,
+            barPercentage: 0.6,
+        });
+    }
 
     timelineChartInstance = new Chart(ctx, {
         type: 'bar',
-        data: {
-            datasets: [{
-                label: 'Online',
-                data: bars,
-                backgroundColor: '#4ade80',
-                borderRadius: 2,
-                borderSkipped: false,
-                barPercentage: 0.6,
-            }],
-        },
+        data: { datasets },
         options: {
             indexAxis: 'y',
             responsive: true,
             maintainAspectRatio: false,
             plugins: {
-                legend: { display: false },
+                legend: { display: hasBothSources, labels: { boxWidth: 12 } },
                 tooltip: {
                     callbacks: {
                         label: function(ctx) {
@@ -64,7 +78,7 @@ function renderTimelineChart(onlinePeriods) {
                             const durMin = Math.round((end - start) / 60000);
                             const startStr = d1.toLocaleTimeString('en-GB', { hour12: false });
                             const endStr = d2.toLocaleTimeString('en-GB', { hour12: false });
-                            return `${startStr} - ${endStr} (${durMin}m)`;
+                            return `${ctx.dataset.label}: ${startStr} - ${endStr} (${durMin}m)`;
                         }
                     }
                 }
@@ -82,7 +96,7 @@ function renderTimelineChart(onlinePeriods) {
                     grid: { color: '#1f1f35' },
                 },
                 y: {
-                    display: false,
+                    display: hasBothSources,
                 },
             },
         },

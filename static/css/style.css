@@ -262,10 +262,22 @@ td {
     border: 1px solid #2aabee44;
 }
 
+.source-badge.tg.online {
+    background: #2aabee44;
+    border-color: #2aabee;
+    box-shadow: 0 0 6px #2aabee66;
+}
+
 .source-badge.dc {
     background: #5865f222;
     color: #5865f2;
     border: 1px solid #5865f244;
+}
+
+.source-badge.dc.online {
+    background: #5865f244;
+    border-color: #5865f2;
+    box-shadow: 0 0 6px #5865f266;
 }
 
 /* Responsive */

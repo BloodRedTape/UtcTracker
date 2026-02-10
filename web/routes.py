@@ -152,26 +152,31 @@ def create_router() -> APIRouter:
             except (ValueError, AttributeError):
                 pass
 
-        # Online periods for the activity timeline
+        # Online periods for the activity timeline (per source)
         all_events = storage.get_all_events_for_user(user_id)
+        # Split events by source
+        events_by_source: dict[str, list] = {}
+        for ev in all_events:
+            events_by_source.setdefault(ev.source, []).append(ev)
+
         online_periods = []
-        i = 0
-        while i < len(all_events):
-            if all_events[i].status == "online":
-                start = all_events[i].timestamp_utc
-                # Skip consecutive online events (keep the first as start)
-                while i + 1 < len(all_events) and all_events[i + 1].status == "online":
-                    i += 1
-                # Now find the end
-                if i + 1 < len(all_events) and all_events[i + 1].status == "offline":
-                    end = all_events[i + 1].timestamp_utc
-                    i += 2
+        for source, evts in events_by_source.items():
+            i = 0
+            while i < len(evts):
+                if evts[i].status == "online":
+                    start = evts[i].timestamp_utc
+                    while i + 1 < len(evts) and evts[i + 1].status == "online":
+                        i += 1
+                    if i + 1 < len(evts) and evts[i + 1].status == "offline":
+                        end = evts[i + 1].timestamp_utc
+                        i += 2
+                    else:
+                        end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                        i += 1
+                    online_periods.append({"start": start, "end": end, "source": source})
                 else:
-                    end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
                     i += 1
-                online_periods.append({"start": start, "end": end})
-            else:
-                i += 1
+        online_periods.sort(key=lambda p: p["start"])
 
         offsets_seen = sorted(set(dt.offset_hours for dt in daily_tzs))
 
