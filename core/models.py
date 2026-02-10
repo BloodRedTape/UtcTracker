@@ -10,6 +10,7 @@ class StatusEvent:
     timestamp_utc: str  # ISO 8601, e.g. "2025-06-15T06:00:00Z"
     status: str  # "online" or "offline"
     raw_status_type: str  # "UserStatusOnline", "UserStatusOffline", etc.
+    source: str = "telegram"  # "telegram" or "discord"
 
 
 @dataclass

@@ -24,21 +24,25 @@ class TelegramTracker:
             tg["api_id"],
             tg["api_hash"],
         )
-        self.tracked_users: dict[int, str] = {}  # user_id -> label
+        # telegram_entity_id -> internal user_id
+        self.tracked_users: dict[int, int] = {}
+        # internal user_id -> label (for logging)
+        self._labels: dict[int, str] = {}
         self._tracking_config = config.get("tracking", {})
         self._setup_handlers()
 
     def _setup_handlers(self):
         @self.client.on(events.UserUpdate)
         async def on_user_update(event):
-            user_id = event.user_id
-            if user_id not in self.tracked_users:
+            tg_entity_id = event.user_id
+            if tg_entity_id not in self.tracked_users:
                 return
 
             status = event.status
             if status is None:
                 return
 
+            internal_uid = self.tracked_users[tg_entity_id]
             now_utc = datetime.now(timezone.utc)
 
             if isinstance(status, types.UserStatusOnline):
@@ -50,10 +54,10 @@ class TelegramTracker:
                 if status.was_online:
                     now_utc = status.was_online.replace(tzinfo=timezone.utc)
             elif isinstance(status, types.UserStatusRecently):
-                log.info("User %d: status is 'recently' (restricted visibility)", user_id)
+                log.info("User %d: status is 'recently' (restricted visibility)", tg_entity_id)
                 return
             else:
-                log.debug("User %d: unhandled status type %s", user_id, type(status).__name__)
+                log.debug("User %d: unhandled status type %s", tg_entity_id, type(status).__name__)
                 return
 
             ts = now_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -61,12 +65,13 @@ class TelegramTracker:
                 timestamp_utc=ts,
                 status=status_str,
                 raw_status_type=raw_type,
+                source="telegram",
             )
 
-            log.info("User %d [%s]: %s at %s", user_id, self.tracked_users[user_id], status_str, ts)
+            log.info("User %d [%s]: %s at %s", tg_entity_id, self._labels.get(internal_uid, "?"), status_str, ts)
 
-            if storage.append_event(user_id, event_obj):
-                sleep_detector.analyze(user_id, self._tracking_config)
+            if storage.append_event(internal_uid, event_obj):
+                sleep_detector.analyze(internal_uid, self._tracking_config)
 
     async def connect(self):
         """Start the Telethon client and resolve tracked users."""
@@ -102,19 +107,27 @@ class TelegramTracker:
         log.info("Telegram client connected")
 
         for user_cfg in self.config.get("tracked_users", []):
-            identifier = user_cfg["identifier"]
-            label = user_cfg.get("label", str(identifier))
+            telegram_id = user_cfg.get("telegram_id") or user_cfg.get("identifier")
+            if not telegram_id:
+                continue
+            label = user_cfg.get("label", str(telegram_id))
             try:
-                entity = await self.client.get_entity(identifier)
-                self.tracked_users[entity.id] = label
+                entity = await self.client.get_entity(telegram_id)
                 username = getattr(entity, "username", None)
-                storage.ensure_user(entity.id, username, label)
-                log.info("Tracking user: %s (id=%d, username=%s)", label, entity.id, username)
+                internal_uid = storage.ensure_user(
+                    label=label,
+                    telegram_id=entity.id,
+                    discord_id=user_cfg.get("discord_id"),
+                    username=username,
+                )
+                self.tracked_users[entity.id] = internal_uid
+                self._labels[internal_uid] = label
+                log.info("Tracking user: %s (tg_id=%d, uid=%d, username=%s)", label, entity.id, internal_uid, username)
             except Exception as e:
-                log.error("Failed to resolve user '%s': %s", identifier, e)
+                log.error("Failed to resolve user '%s': %s", telegram_id, e)
 
         if not self.tracked_users:
-            log.warning("No users to track! Check your config.json tracked_users list.")
+            log.warning("No Telegram users to track! Check your config.json tracked_users list.")
 
     async def run(self):
         """Run the client event loop + polling fallback."""
@@ -128,16 +141,17 @@ class TelegramTracker:
         interval = self._tracking_config.get("polling_interval_seconds", 300)
         while True:
             await asyncio.sleep(interval)
-            for user_id in list(self.tracked_users):
+            for tg_entity_id in list(self.tracked_users):
                 try:
-                    user = await self.client.get_entity(user_id)
+                    user = await self.client.get_entity(tg_entity_id)
                     if user.status is not None:
-                        self._process_polled_status(user_id, user.status)
+                        self._process_polled_status(tg_entity_id, user.status)
                 except Exception as e:
-                    log.debug("Poll error for user %d: %s", user_id, e)
+                    log.debug("Poll error for user %d: %s", tg_entity_id, e)
 
-    def _process_polled_status(self, user_id: int, status):
+    def _process_polled_status(self, tg_entity_id: int, status):
         """Process a polled status the same way as an event."""
+        internal_uid = self.tracked_users[tg_entity_id]
         now_utc = datetime.now(timezone.utc)
 
         if isinstance(status, types.UserStatusOnline):
@@ -156,10 +170,11 @@ class TelegramTracker:
             timestamp_utc=ts,
             status=status_str,
             raw_status_type=raw_type,
+            source="telegram",
         )
 
-        if storage.append_event(user_id, event_obj):
-            sleep_detector.analyze(user_id, self._tracking_config)
+        if storage.append_event(internal_uid, event_obj):
+            sleep_detector.analyze(internal_uid, self._tracking_config)
 
     async def disconnect(self):
         await self.client.disconnect()

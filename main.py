@@ -20,7 +20,7 @@ log = logging.getLogger("nickutc")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="NickUtc - Telegram Timezone Tracker")
+    parser = argparse.ArgumentParser(description="NickUtc - Timezone Tracker")
     parser.add_argument(
         "data_dir",
         help="Directory for config.json, database and Telethon session files",
@@ -46,9 +46,6 @@ async def main():
     db_path = str(Path(data_dir) / "nickutc.db")
     storage.init(db_path)
 
-    # Create Telegram tracker (session file lives in data_dir)
-    tracker = TelegramTracker(config, data_dir)
-
     # Create FastAPI app
     app = create_app()
 
@@ -65,17 +62,31 @@ async def main():
     )
     server = uvicorn.Server(uvicorn_config)
 
-    # Connect Telegram client (will prompt for auth on first run)
-    await tracker.connect()
+    tasks = []
+
+    # Telegram tracker (optional — only if telegram config present)
+    tg_cfg = config.get("telegram", {})
+    if tg_cfg.get("api_id"):
+        tracker = TelegramTracker(config, data_dir)
+        await tracker.connect()
+        tasks.append(tracker.run())
+        log.info("Telegram tracker started")
+
+    # Discord tracker (optional — only if discord config present)
+    discord_cfg = config.get("discord", {})
+    if discord_cfg.get("bot_token"):
+        from core.discord_tracker import DiscordTracker
+        discord_tracker = DiscordTracker(config)
+        tasks.append(discord_tracker.run())
+        log.info("Discord tracker started")
 
     log.info("Dashboard available at http://%s:%d", host, port)
     log.info("Data directory: %s", data_dir)
 
-    # Run both concurrently
-    await asyncio.gather(
-        tracker.run(),
-        server.serve(),
-    )
+    tasks.append(server.serve())
+
+    # Run all concurrently
+    await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

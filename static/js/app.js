@@ -86,10 +86,14 @@ async function loadUsers() {
         const tzDisplay = u.timezone_display !== 'N/A'
             ? `${u.timezone_display}<br><span class="user-time" data-offset="${u.current_tz_offset}">${userLocalTime}</span>`
             : 'N/A';
+        const sourceBadges = [
+            u.telegram_id ? `<span class="source-badge tg" title="Telegram ${u.telegram_status || 'unknown'}">TG</span>` : '',
+            u.discord_id ? `<span class="source-badge dc" title="Discord ${u.discord_status || 'unknown'}">DC</span>` : '',
+        ].filter(Boolean).join(' ');
         return `
             <tr data-uid="${u.user_id}" class="${u.user_id === selectedUserId ? 'active' : ''}" onclick="selectUser(${u.user_id})">
                 <td><span class="status-dot ${u.current_status || 'offline'}"></span>${u.current_status || 'unknown'}</td>
-                <td>${escapeHtml(u.label)}</td>
+                <td>${escapeHtml(u.label)} ${sourceBadges}</td>
                 <td>${u.username ? '@' + escapeHtml(u.username) : '-'}</td>
                 <td class="tz-offset">${tzDisplay}</td>
                 <td>${timeAgo(u.last_event_utc)}</td>

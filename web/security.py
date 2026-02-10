@@ -106,11 +106,6 @@ def validate_user_id(user_id: int) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid user_id: must be positive integer",
         )
-    if user_id > 9999999999:  # Telegram user IDs are typically < 10 billion
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid user_id: value too large",
-        )
 
 
 def validate_date_format(date_str: str, param_name: str) -> None:

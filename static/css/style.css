@@ -244,6 +244,30 @@ td {
     margin-top: 2px;
 }
 
+/* Source badges */
+.source-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.5px;
+    vertical-align: middle;
+    margin-left: 4px;
+}
+
+.source-badge.tg {
+    background: #2aabee22;
+    color: #2aabee;
+    border: 1px solid #2aabee44;
+}
+
+.source-badge.dc {
+    background: #5865f222;
+    color: #5865f2;
+    border: 1px solid #5865f244;
+}
+
 /* Responsive */
 @media (min-width: 768px) {
     .charts-grid {
