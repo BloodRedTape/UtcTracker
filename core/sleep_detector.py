@@ -97,6 +97,16 @@ def _calculate_tz_offset(wakeup_utc: datetime, assumed_local_hour: int) -> float
     elif offset > 14: offset -= 24
     return round(offset * 2) / 2
 
+def _count_online_events_between(events: list[StatusEvent], start: datetime, end: datetime) -> int:
+    """Count online events in the original (unfiltered) stream between two timestamps."""
+    count = 0
+    for e in events:
+        ts = _parse_ts(e.timestamp_utc)
+        if ts > start and ts < end and e.status == "online":
+            count += 1
+    return count
+
+
 def _detect_sleep_periods(
     events: list[StatusEvent],
     threshold_hours: float,      # Например, 4.0 часа (минимум для зачета сна)
@@ -104,10 +114,13 @@ def _detect_sleep_periods(
     assumed_wakeup_hour: int,    # Твой параметр (например, 9)
     max_interruption_minutes: int = 45 # Новое: "туалетный перерыв"
 ) -> list[SleepPeriod]:
-    
+
+    # Keep merged (but unfiltered) events for activity counting during merge
+    merged_events = _merge_sources(events)
+
     # 1. Чистим технический шум и повторно дедуплицируем
     cleaned = _dedup(_filter_network_noise(events, min_online_seconds))
-    
+
     # 2. Собираем "сырые" отрезки оффлайна
     raw_periods = []
     last_offline_time = None
@@ -139,6 +152,7 @@ def _detect_sleep_periods(
     # иначе весь день превращается в один гигантский "сон".
     min_merge_hours = threshold_hours / 2  # период должен быть >= половины порога сна
     candidates = [p for p in raw_periods if p["duration"] >= min_merge_hours]
+    max_awake_online_events = 2  # если больше 2 онлайнов в перерыве — это осознанная активность
 
     merged_periods = []
     if candidates:
@@ -148,7 +162,12 @@ def _detect_sleep_periods(
             # Разрыв между концом текущего и началом следующего
             awake_gap_minutes = (next_period["start"] - current_period["end"]).total_seconds() / 60
 
-            if awake_gap_minutes <= max_interruption_minutes:
+            # Считаем online-события в промежутке между gap'ами из оригинального потока
+            online_count = _count_online_events_between(
+                merged_events, current_period["end"], next_period["start"]
+            )
+
+            if awake_gap_minutes <= max_interruption_minutes and online_count <= max_awake_online_events:
                 # СКЛЕИВАЕМ: Продлеваем текущий период
                 current_period["end"] = next_period["end"]
                 current_period["end_ts"] = next_period["end_ts"]
