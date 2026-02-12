@@ -53,6 +53,21 @@ Multi-source online-status tracker. Monitors when users go online/offline via Te
 
 Both `telegram` and `discord` sections are optional. Each tracked user needs at least one of `telegram_id` / `discord_id`. Legacy `"identifier"` field is supported for backward compatibility.
 
+## DB schema gotchas
+
+- **`user_id` is autoincrement**, NOT the Telegram/Discord ID. Platform IDs live in `telegram_id`/`discord_id` columns on `users` table. All foreign keys (`events`, `sleep_periods`, `daily_timezones`) reference the internal `user_id`.
+- **Migration from legacy schema**: `_migrate()` in `storage.py` detects old schema (where `user_id` was the raw Telegram ID) and remaps all tables. It runs automatically on startup.
+- **`events.source`** column distinguishes "telegram" vs "discord" events. Deduplication in `append_event()` is **per source** — last 2 events with the same `(user_id, source)`.
+- **Per-source status**: `users` table has `telegram_status`, `discord_status`, and computed `current_status` (online if ANY source is online). Updated atomically in `append_event()`.
+
+## Multi-source architecture
+
+- **User linking**: both trackers pass all known IDs from config to `ensure_user()`. This is critical — if Telegram tracker only passes `telegram_id`, and Discord tracker only passes `discord_id`, they create **two separate users** instead of one. Both must pass `discord_id=user_cfg.get("discord_id")` etc.
+- **Sleep detection**: `get_all_events_for_user()` returns events from ALL sources sorted by timestamp. Sleep detector treats this as a single stream — `_dedup()` naturally collapses overlapping online/offline from different sources.
+- **Activity timeline**: `online_periods` in `/stats` API are built **per source** (split events by source, compute periods separately). Frontend renders them as separate colored rows (TG=blue, DC=purple).
+- **Discord bot requirements**: Must have **Presence Intent** and **Server Members Intent** enabled in Discord Developer Portal. Bot must share a guild (server) with tracked users. `on_presence_update` only fires for guild members in the bot's member cache.
+- **Discord initial status**: On `on_ready`, bot captures current status from guild member cache via `guild.get_member()`. Without this, the first event only arrives on next status *change*.
+
 ## Timezone handling
 
 - **Backend**: all timestamps stored and transmitted in UTC (ISO format with `Z` suffix)

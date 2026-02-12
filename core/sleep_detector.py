@@ -26,6 +26,36 @@ def _dedup(events: list[StatusEvent]) -> list[StatusEvent]:
     return result
 
 
+def _merge_sources(events: list[StatusEvent]) -> list[StatusEvent]:
+    """Merge multi-source events into a single combined status stream.
+
+    User is 'online' if ANY source is online, 'offline' only when ALL are offline.
+    """
+    if not events:
+        return []
+
+    sorted_events = sorted(events, key=lambda e: e.timestamp_utc)
+
+    source_state: dict[str, str] = {}
+    combined_status = "offline"
+    result: list[StatusEvent] = []
+
+    for e in sorted_events:
+        source_state[e.source] = e.status
+        new_combined = "online" if any(s == "online" for s in source_state.values()) else "offline"
+
+        if new_combined != combined_status:
+            combined_status = new_combined
+            result.append(StatusEvent(
+                timestamp_utc=e.timestamp_utc,
+                status=combined_status,
+                raw_status_type=e.raw_status_type,
+                source="combined",
+            ))
+
+    return result
+
+
 def _filter_network_noise(events: list[StatusEvent], min_online_seconds: int) -> list[StatusEvent]:
     """
     Удаляет очень короткие периоды онлайна (технический шум).
@@ -34,8 +64,8 @@ def _filter_network_noise(events: list[StatusEvent], min_online_seconds: int) ->
     if not events:
         return []
 
-    # Сначала сортируем и дедуплицируем, чтобы логика не сломалась из-за беспорядка в БД
-    sorted_events = _dedup(sorted(events, key=lambda e: e.timestamp_utc))
+    # Merge multi-source events into combined status stream, then sort
+    sorted_events = _merge_sources(events)
     filtered = []
     
     i = 0
