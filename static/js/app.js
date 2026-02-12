@@ -177,7 +177,7 @@ async function selectUser(userId) {
 
     // Render charts
     renderTimelineChart(stats.online_periods || []);
-    renderTzHistoryChart(tzHistory || []);
+    renderSleepDurationChart(sleepPeriods || []);
     renderWakeupChart(stats.wakeup_times || []);
 
     // Render sleep periods table (latest first)

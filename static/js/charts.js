@@ -1,12 +1,12 @@
 // NickUtc - Chart.js Chart Definitions (theme-aware)
 
 let timelineChartInstance = null;
-let tzHistoryChartInstance = null;
+let sleepDurationChartInstance = null;
 let wakeupChartInstance = null;
 
 // Cached data for re-rendering on theme switch
 let cachedTimelineData = null;
-let cachedTzHistoryData = null;
+let cachedSleepDurationData = null;
 let cachedWakeupData = null;
 
 // --- Theme Helpers ---
@@ -21,7 +21,7 @@ function applyChartTheme() {
 
     // Re-render all active charts with new theme colors
     if (cachedTimelineData) renderTimelineChart(cachedTimelineData);
-    if (cachedTzHistoryData) renderTzHistoryChart(cachedTzHistoryData);
+    if (cachedSleepDurationData) renderSleepDurationChart(cachedSleepDurationData);
     if (cachedWakeupData) renderWakeupChart(cachedWakeupData);
 }
 
@@ -122,39 +122,43 @@ function renderTimelineChart(onlinePeriods) {
     });
 }
 
-// --- Chart 2: Timezone History (Stepped Line) ---
+// --- Chart 2: Sleep Duration (Bar) ---
 
-function renderTzHistoryChart(tzHistory) {
-    cachedTzHistoryData = tzHistory;
-    const ctx = document.getElementById('tzHistoryChart').getContext('2d');
+function renderSleepDurationChart(sleepPeriods) {
+    cachedSleepDurationData = sleepPeriods;
+    const ctx = document.getElementById('sleepDurationChart').getContext('2d');
 
-    if (tzHistoryChartInstance) {
-        tzHistoryChartInstance.destroy();
+    if (sleepDurationChartInstance) {
+        sleepDurationChartInstance.destroy();
     }
 
-    const primaryColor = getCSSColor('--primary');
     const gridColor = getCSSColor('--chart-grid');
     const mutedFg = getCSSColor('--muted-foreground');
 
-    const data = tzHistory.map(t => ({
-        x: t.date,
-        y: t.offset_hours,
+    const data = sleepPeriods.map(sp => ({
+        x: sp.date,
+        y: Math.round(sp.gap_hours * 10) / 10,
     }));
 
-    tzHistoryChartInstance = new Chart(ctx, {
-        type: 'line',
+    // Color bars by timezone offset (same palette as wake-up pattern)
+    const colorPalette = ['#f472b6', '#60a5fa', '#4ade80', '#facc15', '#fb923c', '#a78bfa', '#f87171'];
+    const offsets = sleepPeriods.map(sp => sp.estimated_tz_offset);
+    const uniqueOffsets = [...new Set(offsets)].sort((a, b) => a - b);
+    const offsetColorMap = {};
+    uniqueOffsets.forEach((o, i) => {
+        offsetColorMap[o] = colorPalette[i % colorPalette.length];
+    });
+    const barColors = sleepPeriods.map(sp => offsetColorMap[sp.estimated_tz_offset] || mutedFg);
+
+    sleepDurationChartInstance = new Chart(ctx, {
+        type: 'bar',
         data: {
             datasets: [{
-                label: 'UTC Offset',
+                label: 'Sleep Duration',
                 data: data,
-                stepped: true,
-                borderColor: primaryColor,
-                backgroundColor: primaryColor + '22',
-                fill: true,
-                pointRadius: 4,
-                pointBackgroundColor: primaryColor,
-                pointHoverRadius: 6,
-                borderWidth: 2,
+                backgroundColor: barColors,
+                borderRadius: 3,
+                borderSkipped: false,
             }],
         },
         options: {
@@ -165,9 +169,9 @@ function renderTzHistoryChart(tzHistory) {
                 tooltip: {
                     callbacks: {
                         label: function(ctx) {
-                            const offset = ctx.parsed.y;
-                            const sign = offset >= 0 ? '+' : '';
-                            return `UTC${sign}${offset}`;
+                            const h = Math.floor(ctx.parsed.y);
+                            const m = Math.round((ctx.parsed.y - h) * 60);
+                            return `${h}h ${m}m`;
                         }
                     }
                 }
@@ -179,14 +183,12 @@ function renderTzHistoryChart(tzHistory) {
                     grid: { color: gridColor },
                 },
                 y: {
-                    title: { display: true, text: 'UTC Offset', color: mutedFg },
-                    min: -12,
-                    max: 14,
+                    title: { display: true, text: 'Hours', color: mutedFg },
+                    min: 0,
                     grid: { color: gridColor },
                     ticks: {
                         callback: function(val) {
-                            const sign = val >= 0 ? '+' : '';
-                            return `${sign}${val}`;
+                            return `${val}h`;
                         }
                     }
                 },
@@ -212,6 +214,23 @@ function renderWakeupChart(wakeupTimes) {
         x: w.date,
         y: w.hour_utc,
     }));
+
+    // Auto-zoom: compute Y range from data with 1h padding, minimum 4h span
+    const hours = wakeupTimes.map(w => w.hour_utc);
+    let yMin = 0, yMax = 24;
+    if (hours.length) {
+        const dataMin = Math.floor(Math.min(...hours)) - 1;
+        const dataMax = Math.ceil(Math.max(...hours)) + 1;
+        const span = dataMax - dataMin;
+        if (span < 4) {
+            const mid = (dataMin + dataMax) / 2;
+            yMin = Math.max(0, Math.floor(mid - 2));
+            yMax = Math.min(24, Math.ceil(mid + 2));
+        } else {
+            yMin = Math.max(0, dataMin);
+            yMax = Math.min(24, dataMax);
+        }
+    }
 
     // Color points by timezone offset
     const offsets = wakeupTimes.map(w => w.offset);
@@ -260,11 +279,11 @@ function renderWakeupChart(wakeupTimes) {
                 },
                 y: {
                     title: { display: true, text: 'Hour (UTC)', color: mutedFg },
-                    min: 0,
-                    max: 24,
+                    min: yMin,
+                    max: yMax,
                     grid: { color: gridColor },
                     ticks: {
-                        stepSize: 3,
+                        stepSize: 1,
                         callback: function(val) {
                             return `${val}:00`;
                         }
