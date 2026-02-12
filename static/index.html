@@ -48,21 +48,23 @@
     <main>
         <section id="usersSection">
             <h2>Tracked Users</h2>
-            <table id="usersTable">
-                <thead>
-                    <tr>
-                        <th>Status</th>
-                        <th>Name</th>
-                        <th>Username</th>
-                        <th>Timezone</th>
-                        <th>Last Seen</th>
-                        <th>Events</th>
-                    </tr>
-                </thead>
-                <tbody id="usersBody">
-                    <tr><td colspan="6" class="loading">Loading...</td></tr>
-                </tbody>
-            </table>
+            <div class="table-scroll">
+                <table id="usersTable">
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Name</th>
+                            <th>Username</th>
+                            <th>Timezone</th>
+                            <th>Last Seen</th>
+                            <th>Events</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersBody">
+                        <tr><td colspan="6" class="loading">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </section>
 
         <section id="detailSection" class="hidden">
@@ -102,32 +104,36 @@
 
             <div class="sleep-table-section">
                 <h3>Sleep Periods</h3>
-                <table id="sleepTable">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Fell Asleep</th>
-                            <th>Woke Up</th>
-                            <th>Duration</th>
-                            <th>Est. Timezone</th>
-                        </tr>
-                    </thead>
-                    <tbody id="sleepBody"></tbody>
-                </table>
+                <div class="table-scroll">
+                    <table id="sleepTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Fell Asleep</th>
+                                <th>Woke Up</th>
+                                <th>Duration</th>
+                                <th>Est. Timezone</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sleepBody"></tbody>
+                    </table>
+                </div>
             </div>
 
             <div class="tz-table-section">
                 <h3>Daily Timezone Estimates</h3>
-                <table id="tzTable">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Timezone</th>
-                            <th>Wakeup</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tzBody"></tbody>
-                </table>
+                <div class="table-scroll">
+                    <table id="tzTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Timezone</th>
+                                <th>Wakeup</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tzBody"></tbody>
+                    </table>
+                </div>
             </div>
         </section>
     </main>

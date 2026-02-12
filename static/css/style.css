@@ -465,13 +465,151 @@ td {
     box-shadow: 0 0 6px var(--discord-glow);
 }
 
+/* ===== Table Scroll Wrapper ===== */
+
+.table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius);
+}
+
+.table-scroll table {
+    min-width: 500px;
+}
+
+/* ===== Touch improvements ===== */
+
+@media (pointer: coarse) {
+    .theme-toggle {
+        width: 40px;
+        height: 40px;
+    }
+
+    .status-dot {
+        width: 12px;
+        height: 12px;
+    }
+
+    #usersTable tbody tr {
+        -webkit-tap-highlight-color: var(--active);
+    }
+}
+
 /* ===== Responsive ===== */
 
+/* Tablet and up */
 @media (min-width: 768px) {
     .charts-grid {
         grid-template-columns: 1fr 1fr;
     }
     .charts-grid .chart-card:first-child {
         grid-column: 1 / -1;
+    }
+}
+
+/* Mobile (<600px) */
+@media (max-width: 599px) {
+    header {
+        flex-wrap: wrap;
+        padding: 12px 16px;
+        gap: 8px;
+    }
+
+    .subtitle {
+        font-size: 0.8rem;
+    }
+
+    .header-actions {
+        width: 100%;
+        justify-content: flex-end;
+        gap: 8px;
+    }
+
+    main {
+        padding: 12px;
+    }
+
+    h2 {
+        font-size: 1.05rem;
+    }
+
+    /* Users table: hide Username (3rd) and Events (6th) columns */
+    #usersTable th:nth-child(3),
+    #usersTable td:nth-child(3),
+    #usersTable th:nth-child(6),
+    #usersTable td:nth-child(6) {
+        display: none;
+    }
+
+    th, td {
+        padding: 8px 10px;
+    }
+
+    .table-scroll table {
+        min-width: unset;
+    }
+
+    /* Detail header stacked */
+    .detail-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        padding: 16px;
+    }
+
+    .tz-display {
+        align-items: flex-start;
+        text-align: left;
+    }
+
+    .tz-big {
+        font-size: 1.5rem;
+    }
+
+    /* Charts */
+    .chart-container {
+        height: 200px;
+    }
+
+    .chart-container canvas {
+        max-height: 200px;
+    }
+
+    .chart-card {
+        padding: 12px;
+    }
+
+    .charts-grid {
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+
+    #detailSection {
+        margin-top: 16px;
+    }
+
+    .sleep-table-section,
+    .tz-table-section {
+        margin-top: 12px;
+    }
+
+    .source-badge {
+        font-size: 0.6rem;
+        padding: 1px 4px;
+    }
+}
+
+/* Very small phones (<400px) */
+@media (max-width: 399px) {
+    .last-updated {
+        display: none;
+    }
+
+    header h1 {
+        font-size: 1.2rem;
+    }
+
+    .auto-refresh {
+        font-size: 0.75rem;
     }
 }
