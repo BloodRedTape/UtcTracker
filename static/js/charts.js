@@ -1,25 +1,44 @@
-// NickUtc - Chart.js Chart Definitions
-
-const chartDefaults = {
-    color: '#888',
-    borderColor: '#2a2a40',
-};
-
-Chart.defaults.color = '#888';
-Chart.defaults.borderColor = '#2a2a40';
+// NickUtc - Chart.js Chart Definitions (theme-aware)
 
 let timelineChartInstance = null;
 let tzHistoryChartInstance = null;
 let wakeupChartInstance = null;
 
+// Cached data for re-rendering on theme switch
+let cachedTimelineData = null;
+let cachedTzHistoryData = null;
+let cachedWakeupData = null;
+
+// --- Theme Helpers ---
+
+function getCSSColor(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+}
+
+function applyChartTheme() {
+    Chart.defaults.color = getCSSColor('--muted-foreground');
+    Chart.defaults.borderColor = getCSSColor('--border');
+
+    // Re-render all active charts with new theme colors
+    if (cachedTimelineData) renderTimelineChart(cachedTimelineData);
+    if (cachedTzHistoryData) renderTzHistoryChart(cachedTzHistoryData);
+    if (cachedWakeupData) renderWakeupChart(cachedWakeupData);
+}
+
 // --- Chart 1: Activity Timeline (Floating Bars) ---
 
 function renderTimelineChart(onlinePeriods) {
+    cachedTimelineData = onlinePeriods;
     const ctx = document.getElementById('timelineChart').getContext('2d');
 
     if (timelineChartInstance) {
         timelineChartInstance.destroy();
     }
+
+    const gridColor = getCSSColor('--chart-grid');
+    const telegramColor = getCSSColor('--telegram');
+    const discordColor = getCSSColor('--discord');
+    const successColor = getCSSColor('--success');
 
     // Filter to last 48 hours (use UTC)
     const nowUtc = Date.now();
@@ -27,8 +46,8 @@ function renderTimelineChart(onlinePeriods) {
 
     // Split periods by source
     const sourceConfig = {
-        telegram: { label: 'Telegram', color: '#2aabee', row: 'TG' },
-        discord:  { label: 'Discord',  color: '#5865f2', row: 'DC' },
+        telegram: { label: 'Telegram', color: telegramColor, row: 'TG' },
+        discord:  { label: 'Discord',  color: discordColor, row: 'DC' },
     };
 
     // Check which sources are present
@@ -37,7 +56,7 @@ function renderTimelineChart(onlinePeriods) {
 
     const datasets = [];
     for (const source of sources) {
-        const cfg = sourceConfig[source] || { label: source, color: '#4ade80', row: source };
+        const cfg = sourceConfig[source] || { label: source, color: successColor, row: source };
         const bars = onlinePeriods
             .filter(p => (p.source || 'telegram') === source)
             .map(p => ({
@@ -93,7 +112,7 @@ function renderTimelineChart(onlinePeriods) {
                     },
                     min: cutoff.getTime(),
                     max: nowUtc,
-                    grid: { color: '#1f1f35' },
+                    grid: { color: gridColor },
                 },
                 y: {
                     display: hasBothSources,
@@ -106,11 +125,16 @@ function renderTimelineChart(onlinePeriods) {
 // --- Chart 2: Timezone History (Stepped Line) ---
 
 function renderTzHistoryChart(tzHistory) {
+    cachedTzHistoryData = tzHistory;
     const ctx = document.getElementById('tzHistoryChart').getContext('2d');
 
     if (tzHistoryChartInstance) {
         tzHistoryChartInstance.destroy();
     }
+
+    const primaryColor = getCSSColor('--primary');
+    const gridColor = getCSSColor('--chart-grid');
+    const mutedFg = getCSSColor('--muted-foreground');
 
     const data = tzHistory.map(t => ({
         x: t.date,
@@ -124,11 +148,11 @@ function renderTzHistoryChart(tzHistory) {
                 label: 'UTC Offset',
                 data: data,
                 stepped: true,
-                borderColor: '#60a5fa',
-                backgroundColor: '#60a5fa22',
+                borderColor: primaryColor,
+                backgroundColor: primaryColor + '22',
                 fill: true,
                 pointRadius: 4,
-                pointBackgroundColor: '#60a5fa',
+                pointBackgroundColor: primaryColor,
                 pointHoverRadius: 6,
                 borderWidth: 2,
             }],
@@ -152,13 +176,13 @@ function renderTzHistoryChart(tzHistory) {
                 x: {
                     type: 'time',
                     time: { unit: 'day', displayFormats: { day: 'MMM d' } },
-                    grid: { color: '#1f1f35' },
+                    grid: { color: gridColor },
                 },
                 y: {
-                    title: { display: true, text: 'UTC Offset', color: '#666' },
+                    title: { display: true, text: 'UTC Offset', color: mutedFg },
                     min: -12,
                     max: 14,
-                    grid: { color: '#1f1f35' },
+                    grid: { color: gridColor },
                     ticks: {
                         callback: function(val) {
                             const sign = val >= 0 ? '+' : '';
@@ -174,11 +198,15 @@ function renderTzHistoryChart(tzHistory) {
 // --- Chart 3: Wake-up Pattern (Scatter) ---
 
 function renderWakeupChart(wakeupTimes) {
+    cachedWakeupData = wakeupTimes;
     const ctx = document.getElementById('wakeupChart').getContext('2d');
 
     if (wakeupChartInstance) {
         wakeupChartInstance.destroy();
     }
+
+    const gridColor = getCSSColor('--chart-grid');
+    const mutedFg = getCSSColor('--muted-foreground');
 
     const data = wakeupTimes.map(w => ({
         x: w.date,
@@ -194,7 +222,7 @@ function renderWakeupChart(wakeupTimes) {
         offsetColorMap[o] = colorPalette[i % colorPalette.length];
     });
 
-    const pointColors = wakeupTimes.map(w => offsetColorMap[w.offset] || '#888');
+    const pointColors = wakeupTimes.map(w => offsetColorMap[w.offset] || mutedFg);
 
     wakeupChartInstance = new Chart(ctx, {
         type: 'scatter',
@@ -228,13 +256,13 @@ function renderWakeupChart(wakeupTimes) {
                 x: {
                     type: 'time',
                     time: { unit: 'day', displayFormats: { day: 'MMM d' } },
-                    grid: { color: '#1f1f35' },
+                    grid: { color: gridColor },
                 },
                 y: {
-                    title: { display: true, text: 'Hour (UTC)', color: '#666' },
+                    title: { display: true, text: 'Hour (UTC)', color: mutedFg },
                     min: 0,
                     max: 24,
-                    grid: { color: '#1f1f35' },
+                    grid: { color: gridColor },
                     ticks: {
                         stepSize: 3,
                         callback: function(val) {

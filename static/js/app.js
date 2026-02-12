@@ -3,6 +3,33 @@
 let selectedUserId = null;
 let refreshTimer = null;
 
+// --- Theme Management ---
+
+function getTheme() {
+    return document.documentElement.getAttribute('data-theme') || 'dark';
+}
+
+function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('nickutc-theme', theme);
+    applyChartTheme();
+}
+
+function toggleTheme() {
+    setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+}
+
+function setupTheme() {
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+    // Listen for OS preference changes
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+        if (!localStorage.getItem('nickutc-theme')) {
+            setTheme(e.matches ? 'dark' : 'light');
+        }
+    });
+}
+
 // --- Utilities ---
 
 function formatTz(offset) {
@@ -261,6 +288,8 @@ function stopRefresh() {
 // --- Init ---
 
 document.addEventListener('DOMContentLoaded', async () => {
+    setupTheme();
+    applyChartTheme();
     updateSystemTime();
     await loadUsers();
     setupAutoRefresh();

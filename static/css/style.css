@@ -1,3 +1,110 @@
+/* ===== Theme Tokens (shadcn/Material inspired) ===== */
+
+:root,
+[data-theme="light"] {
+    --background: #f8fafc;
+    --foreground: #0c1524;
+    --card: #ffffff;
+    --card-foreground: #0c1524;
+    --muted: #f0f4f8;
+    --muted-foreground: #5b7083;
+    --border: #dce4ed;
+    --input: #dce4ed;
+    --primary: #0ea5e9;
+    --primary-foreground: #ffffff;
+    --destructive: #dc2626;
+    --destructive-foreground: #ffffff;
+    --success: #16a34a;
+    --success-glow: #16a34a44;
+    --warning: #ca8a04;
+    --warning-foreground: #ffffff;
+    --ring: #0ea5e9;
+    --radius: 8px;
+    --chart-grid: #dce4ed;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.05);
+
+    /* Hover / active states */
+    --hover: #f0f4f8;
+    --active: #e0f2fe;
+    --active-border: #0ea5e9;
+
+    /* Brand */
+    --telegram: #2aabee;
+    --telegram-bg: #2aabee18;
+    --telegram-border: #2aabee33;
+    --telegram-glow: #2aabee44;
+    --discord: #5865f2;
+    --discord-bg: #5865f218;
+    --discord-border: #5865f233;
+    --discord-glow: #5865f244;
+
+    /* Status */
+    --online: #16a34a;
+    --online-glow: #16a34a44;
+    --offline: #94a3b8;
+    --offline-bg: #94a3b822;
+
+    /* Misc */
+    --loading: #94a3b8;
+    --heading: #0c1524;
+    --heading-secondary: #334155;
+    --user-time: #16a34a;
+}
+
+[data-theme="dark"] {
+    --background: #0b1120;
+    --foreground: #e2e8f0;
+    --card: #0f1729;
+    --card-foreground: #e2e8f0;
+    --muted: #152036;
+    --muted-foreground: #7b8ca1;
+    --border: #1e2d45;
+    --input: #1e2d45;
+    --primary: #38bdf8;
+    --primary-foreground: #0b1120;
+    --destructive: #ef4444;
+    --destructive-foreground: #ffffff;
+    --success: #4ade80;
+    --success-glow: #4ade8044;
+    --warning: #facc15;
+    --warning-foreground: #0b1120;
+    --ring: #38bdf8;
+    --radius: 8px;
+    --chart-grid: #152036;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(0, 0, 0, 0.15);
+
+    /* Hover / active states */
+    --hover: #152036;
+    --active: #0c2a4a;
+    --active-border: #38bdf8;
+
+    /* Brand */
+    --telegram: #2aabee;
+    --telegram-bg: #2aabee22;
+    --telegram-border: #2aabee44;
+    --telegram-glow: #2aabee66;
+    --discord: #5865f2;
+    --discord-bg: #5865f222;
+    --discord-border: #5865f244;
+    --discord-glow: #5865f266;
+
+    /* Status */
+    --online: #4ade80;
+    --online-glow: #4ade8066;
+    --offline: #4b5e6f;
+    --offline-bg: #4b5e6f33;
+
+    /* Misc */
+    --loading: #4b5e6f;
+    --heading: #cbd5e1;
+    --heading-secondary: #94a3b8;
+    --user-time: #4ade80;
+}
+
+/* ===== Reset & Base ===== */
+
 * {
     margin: 0;
     padding: 0;
@@ -6,27 +113,33 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0f0f1a;
-    color: #e0e0e0;
+    background: var(--background);
+    color: var(--foreground);
     min-height: 100vh;
+    transition: background-color 0.2s ease, color 0.2s ease;
 }
+
+/* ===== Header ===== */
 
 header {
     display: flex;
     align-items: center;
     gap: 16px;
     padding: 16px 24px;
-    background: #1a1a2e;
-    border-bottom: 1px solid #2a2a40;
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 header h1 {
     font-size: 1.4rem;
-    color: #60a5fa;
+    color: var(--primary);
+    font-weight: 700;
 }
 
 .subtitle {
-    color: #888;
+    color: var(--muted-foreground);
     font-size: 0.9rem;
 }
 
@@ -34,11 +147,11 @@ header h1 {
     margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
 }
 
 .auto-refresh {
-    color: #888;
+    color: var(--muted-foreground);
     font-size: 0.85rem;
     cursor: pointer;
     display: flex;
@@ -46,15 +159,67 @@ header h1 {
     gap: 6px;
 }
 
+.auto-refresh input[type="checkbox"] {
+    accent-color: var(--primary);
+}
+
 .last-updated {
-    color: #888;
+    color: var(--muted-foreground);
     font-size: 0.85rem;
     font-family: 'Courier New', monospace;
-    background: #0f0f1a;
+    background: var(--muted);
     padding: 6px 12px;
-    border-radius: 4px;
-    border: 1px solid #2a2a40;
+    border-radius: calc(var(--radius) / 2);
+    border: 1px solid var(--border);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
+
+/* ===== Theme Toggle ===== */
+
+.theme-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: calc(var(--radius) / 2);
+    border: 1px solid var(--border);
+    background: var(--muted);
+    color: var(--muted-foreground);
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.theme-toggle:hover {
+    background: var(--hover);
+    color: var(--foreground);
+    border-color: var(--primary);
+}
+
+.theme-toggle:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+}
+
+.theme-toggle svg {
+    width: 18px;
+    height: 18px;
+}
+
+/* Show/hide icons based on theme */
+[data-theme="dark"] .theme-toggle .icon-moon,
+[data-theme="light"] .theme-toggle .icon-sun,
+:root .theme-toggle .icon-sun {
+    display: none;
+}
+
+[data-theme="dark"] .theme-toggle .icon-sun,
+[data-theme="light"] .theme-toggle .icon-moon,
+:root .theme-toggle .icon-moon {
+    display: block;
+}
+
+/* ===== Main Content ===== */
 
 main {
     max-width: 1200px;
@@ -65,26 +230,33 @@ main {
 h2 {
     font-size: 1.2rem;
     margin-bottom: 12px;
-    color: #ccc;
+    color: var(--heading);
+    font-weight: 600;
 }
 
 h3 {
     font-size: 1rem;
     margin-bottom: 8px;
-    color: #aaa;
+    color: var(--heading-secondary);
+    font-weight: 600;
 }
 
-/* Users table */
+/* ===== Tables ===== */
+
 table {
     width: 100%;
     border-collapse: collapse;
-    background: #1a1a2e;
-    border-radius: 8px;
+    background: var(--card);
+    border-radius: var(--radius);
     overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 thead {
-    background: #22223a;
+    background: var(--muted);
+    transition: background-color 0.2s ease;
 }
 
 th {
@@ -93,37 +265,39 @@ th {
     font-size: 0.8rem;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #888;
+    color: var(--muted-foreground);
     font-weight: 600;
 }
 
 td {
     padding: 10px 14px;
     font-size: 0.9rem;
-    border-top: 1px solid #2a2a40;
+    border-top: 1px solid var(--border);
+    transition: border-color 0.2s ease;
 }
 
 #usersTable tbody tr {
     cursor: pointer;
-    transition: background 0.15s;
+    transition: background-color 0.15s ease;
 }
 
 #usersTable tbody tr:hover {
-    background: #22223a;
+    background: var(--hover);
 }
 
 #usersTable tbody tr.active {
-    background: #1e293b;
-    border-left: 3px solid #60a5fa;
+    background: var(--active);
+    border-left: 3px solid var(--active-border);
 }
 
 .loading {
     text-align: center;
-    color: #666;
+    color: var(--loading);
     padding: 40px;
 }
 
-/* Status indicator */
+/* ===== Status Indicator ===== */
+
 .status-dot {
     display: inline-block;
     width: 10px;
@@ -133,15 +307,16 @@ td {
 }
 
 .status-dot.online {
-    background: #4ade80;
-    box-shadow: 0 0 6px #4ade8066;
+    background: var(--online);
+    box-shadow: 0 0 6px var(--online-glow);
 }
 
 .status-dot.offline {
-    background: #666;
+    background: var(--offline);
 }
 
-/* Detail section */
+/* ===== Detail Section ===== */
+
 .hidden {
     display: none;
 }
@@ -155,13 +330,16 @@ td {
     justify-content: space-between;
     align-items: center;
     padding: 20px;
-    background: #1a1a2e;
-    border-radius: 8px;
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
     margin-bottom: 20px;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .user-info .username {
-    color: #888;
+    color: var(--muted-foreground);
     font-size: 0.9rem;
 }
 
@@ -176,7 +354,7 @@ td {
 .tz-big {
     font-size: 2rem;
     font-weight: 700;
-    color: #60a5fa;
+    color: var(--primary);
 }
 
 .status-badge {
@@ -187,16 +365,17 @@ td {
 }
 
 .status-badge.online {
-    background: #4ade8022;
-    color: #4ade80;
+    background: var(--success-glow);
+    color: var(--success);
 }
 
 .status-badge.offline {
-    background: #66666622;
-    color: #888;
+    background: var(--offline-bg);
+    color: var(--muted-foreground);
 }
 
-/* Charts grid */
+/* ===== Charts ===== */
+
 .charts-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -205,9 +384,12 @@ td {
 }
 
 .chart-card {
-    background: #1a1a2e;
-    border-radius: 8px;
+    background: var(--card);
+    border-radius: var(--radius);
     padding: 16px;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .chart-container {
@@ -219,7 +401,8 @@ td {
     max-height: 250px;
 }
 
-/* Sleep / TZ tables */
+/* ===== Sleep / TZ Tables ===== */
+
 .sleep-table-section,
 .tz-table-section {
     margin-top: 20px;
@@ -232,19 +415,20 @@ td {
 
 .tz-offset {
     font-weight: 600;
-    color: #60a5fa;
+    color: var(--primary);
 }
 
 .user-time {
     display: block;
     font-size: 0.75rem;
     font-family: 'Courier New', monospace;
-    color: #4ade80;
+    color: var(--user-time);
     font-weight: 500;
     margin-top: 2px;
 }
 
-/* Source badges */
+/* ===== Source Badges ===== */
+
 .source-badge {
     display: inline-block;
     font-size: 0.65rem;
@@ -254,33 +438,35 @@ td {
     letter-spacing: 0.5px;
     vertical-align: middle;
     margin-left: 4px;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .source-badge.tg {
-    background: #2aabee22;
-    color: #2aabee;
-    border: 1px solid #2aabee44;
+    background: var(--telegram-bg);
+    color: var(--telegram);
+    border: 1px solid var(--telegram-border);
 }
 
 .source-badge.tg.online {
-    background: #2aabee44;
-    border-color: #2aabee;
-    box-shadow: 0 0 6px #2aabee66;
+    background: var(--telegram-glow);
+    border-color: var(--telegram);
+    box-shadow: 0 0 6px var(--telegram-glow);
 }
 
 .source-badge.dc {
-    background: #5865f222;
-    color: #5865f2;
-    border: 1px solid #5865f244;
+    background: var(--discord-bg);
+    color: var(--discord);
+    border: 1px solid var(--discord-border);
 }
 
 .source-badge.dc.online {
-    background: #5865f244;
-    border-color: #5865f2;
-    box-shadow: 0 0 6px #5865f266;
+    background: var(--discord-glow);
+    border-color: var(--discord);
+    box-shadow: 0 0 6px var(--discord-glow);
 }
 
-/* Responsive */
+/* ===== Responsive ===== */
+
 @media (min-width: 768px) {
     .charts-grid {
         grid-template-columns: 1fr 1fr;
