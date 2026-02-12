@@ -210,13 +210,22 @@ function renderWakeupChart(wakeupTimes) {
     const gridColor = getCSSColor('--chart-grid');
     const mutedFg = getCSSColor('--muted-foreground');
 
+    // Convert UTC hours to browser local timezone
+    const browserOffsetHours = -new Date().getTimezoneOffset() / 60;
+    const toLocal = (utcHour) => {
+        let local = utcHour + browserOffsetHours;
+        if (local < 0) local += 24;
+        if (local >= 24) local -= 24;
+        return local;
+    };
+
     const data = wakeupTimes.map(w => ({
         x: w.date,
-        y: w.hour_utc,
+        y: toLocal(w.hour_utc),
     }));
 
     // Auto-zoom: compute Y range from data with 1h padding, minimum 4h span
-    const hours = wakeupTimes.map(w => w.hour_utc);
+    const hours = data.map(d => d.y);
     let yMin = 0, yMax = 24;
     if (hours.length) {
         const dataMin = Math.floor(Math.min(...hours)) - 1;
@@ -247,7 +256,7 @@ function renderWakeupChart(wakeupTimes) {
         type: 'scatter',
         data: {
             datasets: [{
-                label: 'Wake-up Time (UTC)',
+                label: 'Wake-up Time (local)',
                 data: data,
                 backgroundColor: pointColors,
                 pointRadius: 6,
@@ -263,10 +272,11 @@ function renderWakeupChart(wakeupTimes) {
                     callbacks: {
                         label: function(ctx) {
                             const w = wakeupTimes[ctx.dataIndex];
-                            const h = Math.floor(w.hour_utc);
-                            const m = Math.round((w.hour_utc - h) * 60);
+                            const localHour = toLocal(w.hour_utc);
+                            const h = Math.floor(localHour);
+                            const m = Math.round((localHour - h) * 60);
                             const sign = w.offset >= 0 ? '+' : '';
-                            return `${w.date}: ${h}:${m.toString().padStart(2, '0')} UTC (est. UTC${sign}${w.offset})`;
+                            return `${w.date}: ${h}:${m.toString().padStart(2, '0')} (est. UTC${sign}${w.offset})`;
                         }
                     }
                 }
@@ -278,7 +288,7 @@ function renderWakeupChart(wakeupTimes) {
                     grid: { color: gridColor },
                 },
                 y: {
-                    title: { display: true, text: 'Hour (UTC)', color: mutedFg },
+                    title: { display: true, text: 'Hour (local)', color: mutedFg },
                     min: yMin,
                     max: yMax,
                     grid: { color: gridColor },
