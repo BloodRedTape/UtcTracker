@@ -9,6 +9,47 @@ let cachedTimelineData = null;
 let cachedSleepDurationData = null;
 let cachedWakeupData = null;
 
+// --- Weekend Highlight Plugin ---
+
+const weekendHighlightPlugin = {
+    id: 'weekendHighlight',
+    beforeDraw(chart) {
+        const xScale = chart.scales.x;
+        if (!xScale || xScale.type !== 'time') return;
+
+        const { ctx, chartArea: { top, bottom } } = chart;
+
+        const msPerDay = 86400000;
+        const halfDay = msPerDay / 2;
+
+        // Scan visible range day by day, centered on noon UTC to avoid edge issues
+        const startMs = xScale.min - msPerDay;
+        const endMs = xScale.max + msPerDay;
+
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        ctx.save();
+        ctx.fillStyle = isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)';
+
+        // Highlight centered on midnight UTC (the point position for each date)
+        const d = new Date(startMs);
+        d.setUTCHours(0, 0, 0, 0);
+
+        while (d.getTime() <= endMs) {
+            const day = d.getUTCDay(); // 0=Sun, 6=Sat
+            if (day === 0 || day === 6) {
+                const midnight = d.getTime();
+                const left = Math.max(xScale.getPixelForValue(midnight - halfDay), xScale.left);
+                const right = Math.min(xScale.getPixelForValue(midnight + halfDay), xScale.right);
+                if (right > left) {
+                    ctx.fillRect(left, top, right - left, bottom - top);
+                }
+            }
+            d.setUTCDate(d.getUTCDate() + 1);
+        }
+        ctx.restore();
+    }
+};
+
 // --- Theme Helpers ---
 
 function getCSSColor(varName) {
@@ -161,6 +202,7 @@ function renderSleepDurationChart(sleepPeriods) {
                 borderSkipped: false,
             }],
         },
+        plugins: [weekendHighlightPlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -263,6 +305,7 @@ function renderWakeupChart(wakeupTimes) {
                 pointHoverRadius: 8,
             }],
         },
+        plugins: [weekendHighlightPlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,
