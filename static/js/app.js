@@ -177,8 +177,10 @@ async function selectUser(userId) {
 
     // Render charts
     renderTimelineChart(stats.online_periods || []);
-    renderSleepDurationChart(sleepPeriods || []);
     renderWakeupChart(stats.wakeup_times || []);
+    renderSleepPatternChart(sleepPeriods || []);
+    renderSleepDurationChart(sleepPeriods || []);
+    renderAwakeDurationChart(sleepPeriods || []);
 
     // Render sleep periods table (latest first)
     const sleepBody = document.getElementById('sleepBody');

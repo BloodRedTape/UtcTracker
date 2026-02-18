@@ -502,7 +502,7 @@ td {
     .charts-grid {
         grid-template-columns: 1fr 1fr;
     }
-    .charts-grid .chart-card:first-child {
+    .charts-grid .chart-card--wide {
         grid-column: 1 / -1;
     }
 }
