@@ -12,6 +12,6 @@ COPY main.py .
 
 VOLUME ["/data"]
 
-EXPOSE 8111
+EXPOSE 7111
 
 CMD ["python", "main.py", "/data"]
