@@ -1,0 +1,9 @@
+services:
+  utc:
+    container_name: utc
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8111:8111"
+    volumes:
+      - ./run_tree:/data
