@@ -4,6 +4,6 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "8111:8111"
+      - "7111:7111"
     volumes:
       - ./run_tree:/data
