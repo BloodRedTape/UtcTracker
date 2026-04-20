@@ -159,14 +159,35 @@ def create_router() -> APIRouter:
         for ev in all_events:
             events_by_source.setdefault(ev.source, []).append(ev)
 
+        # If two consecutive `online` events are far apart, an `offline`
+        # event between them was likely missed (bot restart, network hiccup,
+        # Telegram UserUpdate dropped). Closing the first period at the first
+        # online's own timestamp prevents fake multi-hour online stretches.
+        MAX_ONLINE_GAP_SECONDS = 600
+
+        def _parse_ts(ts: str) -> datetime:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
         online_periods = []
         for source, evts in events_by_source.items():
             i = 0
             while i < len(evts):
                 if evts[i].status == "online":
                     start = evts[i].timestamp_utc
+                    # Walk through consecutive `online` events, but split if
+                    # the gap between them exceeds MAX_ONLINE_GAP_SECONDS.
+                    split_end: Optional[str] = None
                     while i + 1 < len(evts) and evts[i + 1].status == "online":
+                        gap = (_parse_ts(evts[i + 1].timestamp_utc)
+                               - _parse_ts(evts[i].timestamp_utc)).total_seconds()
+                        if gap > MAX_ONLINE_GAP_SECONDS:
+                            split_end = evts[i].timestamp_utc
+                            break
                         i += 1
+                    if split_end is not None:
+                        online_periods.append({"start": start, "end": split_end, "source": source})
+                        i += 1
+                        continue
                     if i + 1 < len(evts) and evts[i + 1].status == "offline":
                         end = evts[i + 1].timestamp_utc
                         i += 2
