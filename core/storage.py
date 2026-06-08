@@ -408,6 +408,25 @@ def replace_sleep_periods(user_id: int, periods: list[SleepPeriod]) -> None:
     conn.commit()
 
 
+def replace_sleep_periods_since(user_id: int, since_date: str, periods: list[SleepPeriod]) -> None:
+    """Replace sleep periods dated >= since_date, leaving older ones intact.
+
+    `periods` should contain only records with date >= since_date.
+    """
+    conn = _get_conn()
+    conn.execute(
+        "DELETE FROM sleep_periods WHERE user_id = ? AND date >= ?",
+        (user_id, since_date),
+    )
+    conn.executemany(
+        "INSERT INTO sleep_periods(user_id, offline_at_utc, online_at_utc, gap_hours, estimated_tz_offset, date) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [(user_id, sp.offline_at_utc, sp.online_at_utc, sp.gap_hours, sp.estimated_tz_offset, sp.date)
+         for sp in periods],
+    )
+    conn.commit()
+
+
 def get_sleep_periods(
     user_id: int,
     from_date: Optional[str] = None,
@@ -439,6 +458,23 @@ def replace_daily_timezones(user_id: int, days: list[DayTimezone]) -> None:
     """Replace all daily timezone records for a user (full recompute)."""
     conn = _get_conn()
     conn.execute("DELETE FROM daily_timezones WHERE user_id = ?", (user_id,))
+    conn.executemany(
+        "INSERT INTO daily_timezones(user_id, date, offset_hours, wakeup_utc) VALUES (?, ?, ?, ?)",
+        [(user_id, d.date, d.offset_hours, d.wakeup_utc) for d in days],
+    )
+    conn.commit()
+
+
+def replace_daily_timezones_since(user_id: int, since_date: str, days: list[DayTimezone]) -> None:
+    """Replace daily timezone records dated >= since_date, leaving older intact.
+
+    `days` should contain only records with date >= since_date.
+    """
+    conn = _get_conn()
+    conn.execute(
+        "DELETE FROM daily_timezones WHERE user_id = ? AND date >= ?",
+        (user_id, since_date),
+    )
     conn.executemany(
         "INSERT INTO daily_timezones(user_id, date, offset_hours, wakeup_utc) VALUES (?, ?, ?, ?)",
         [(user_id, d.date, d.offset_hours, d.wakeup_utc) for d in days],

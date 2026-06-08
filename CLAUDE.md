@@ -20,7 +20,7 @@ Multi-source online-status tracker. Monitors when users go online/offline via Te
   - `models.py` — dataclasses (`StatusEvent`, etc.)
 - `web/` — FastAPI web app
   - `server.py` — app entry point
-  - `routes.py` — API endpoints (`/api/users/{id}/stats`, sleep-periods, timezone-history)
+  - `routes.py` — API endpoints (`/api/users/{id}/stats`, online-periods, sleep-periods, timezone-history) + runtime cache
 - `static/js/app.js` — frontend (charts, timeline rendering)
 - `config.json` — tracking config (polling interval, sleep threshold, etc.)
 
@@ -64,9 +64,16 @@ Both `telegram` and `discord` sections are optional. Each tracked user needs at 
 
 - **User linking**: both trackers pass all known IDs from config to `ensure_user()`. This is critical — if Telegram tracker only passes `telegram_id`, and Discord tracker only passes `discord_id`, they create **two separate users** instead of one. Both must pass `discord_id=user_cfg.get("discord_id")` etc.
 - **Sleep detection**: `get_all_events_for_user()` returns events from ALL sources sorted by timestamp. Sleep detector treats this as a single stream — `_dedup()` naturally collapses overlapping online/offline from different sources.
-- **Activity timeline**: `online_periods` in `/stats` API are built **per source** (split events by source, compute periods separately). Frontend renders them as separate colored rows (TG=blue, DC=purple).
+- **Activity timeline**: `online_periods` come from a **dedicated** endpoint `GET /api/users/{id}/online-periods?hours=48` (NOT `/stats`). They are built **per source** (split events by source, compute periods separately). Frontend renders them as separate colored rows (TG=blue, DC=purple).
 - **Discord bot requirements**: Must have **Presence Intent** and **Server Members Intent** enabled in Discord Developer Portal. Bot must share a guild (server) with tracked users. `on_presence_update` only fires for guild members in the bot's member cache.
 - **Discord initial status**: On `on_ready`, bot captures current status from guild member cache via `guild.get_member()`. Without this, the first event only arrives on next status *change*.
+
+## API & caching
+
+- **Frontend always requests full history** — the dashboard (`static/js/app.js`) calls `sleep-periods`, `timezone-history`, `stats` with **no** `from`/`to`/`days`/`page` params. Those range params were removed from `sleep-periods`/`timezone-history` route signatures. The old `GET /users/{id}/events` endpoint was **removed** (frontend never used it). `storage.*` functions still accept optional `from`/`to` because the cache layer calls them with computed boundaries.
+- **`online-periods` is its own endpoint**: `GET /users/{id}/online-periods?hours=48`. It reads only the requested window via `storage.get_events_since(user_id, since)` (which also returns one anchor event per source from *before* the window, so an already-open period renders correctly) and builds periods with `_build_online_periods`. Cost scales with the window, not the whole history. Frontend clamps the display to 48h client-side.
+- **`/stats` does NOT scan events** — it only reads pre-aggregated `daily_timezones`/`sleep_periods` tables (wakeup scatter data, offsets seen, counts). Never reintroduce a full event scan here; that was the original slowness.
+- **Runtime cache** (`web/routes.py`): domain fact is that history older than ~4 days is immutable (sleep detection only rewrites recent days; new events always have current timestamps). `_cached_date_range` splits a full-history response into an immutable older half (dates < boundary = today−4d, cached) + a live last-~4-days tail, concatenated. Cache keys are **day-bucketed** (`_today_utc()`); stale-day entries are swept out on the next miss, so memory stays bounded without a TTL. Cache is in-process and resets on restart (safe — only immutable data is cached).
 
 ## Timezone handling
 

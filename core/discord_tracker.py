@@ -63,6 +63,9 @@ class DiscordTracker:
                 )
                 self.tracked_users[dc_id] = internal_uid
                 self._labels[internal_uid] = label
+                # One-time full recompute on startup (re-freezes old days, picks
+                # up any backfilled events). Per-event analysis is incremental.
+                sleep_detector.analyze(internal_uid, self._tracking_config, full=True)
                 log.info("Tracking Discord user: %s (dc_id=%d, uid=%d)", label, dc_id, internal_uid)
 
                 # Capture initial status from guild member cache

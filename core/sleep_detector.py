@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from core.models import StatusEvent, SleepPeriod, DayTimezone
 from core import storage
@@ -216,28 +216,66 @@ def _compute_daily_timezones(sleep_periods: list[SleepPeriod]) -> list[DayTimezo
     return daily
 
 
-def analyze(user_id: int, config_tracking: dict) -> None:
+# Days within this window of "today" are recomputed on every new event;
+# anything older is considered frozen and never rewritten. Matches the
+# 4-day immutability assumption used by the web cache, with extra slack.
+_UNFROZEN_DAYS = 7
+# Extra days of events read *before* the window purely to anchor a sleep
+# period that straddles the window's left edge. Read-only margin: periods
+# dated before the window are detected (for correct merging at the boundary)
+# but never written back.
+_READ_MARGIN_DAYS = 2
+
+
+def analyze(user_id: int, config_tracking: dict, full: bool = False) -> None:
     """
-    Run full analysis on a user:
-    1. Load all events from DB
-    2. Detect sleep periods
-    3. Compute daily timezone estimates
-    4. Save results back to DB
-    5. Update user's current_tz_offset
+    Run sleep/timezone analysis for a user and save results.
+
+    Incremental by default: only days within the last `_UNFROZEN_DAYS` are
+    recomputed; older sleep_periods/daily_timezones are left untouched. Pass
+    `full=True` to recompute the entire history (e.g. one-time on startup, or
+    after backfilling old events).
+
+    The detection core (`_detect_sleep_periods`) is unchanged — incremental
+    mode only narrows which events it sees and which days get written.
     """
     threshold = config_tracking.get("sleep_threshold_hours", 4.0)
     min_online = config_tracking.get("min_online_duration_seconds", 30)
     assumed_hour = config_tracking.get("assumed_wakeup_hour", 9)
 
-    events = storage.get_all_events_for_user(user_id)
+    if full:
+        events = storage.get_all_events_for_user(user_id)
+        if not events:
+            return
+        sleep_periods = _detect_sleep_periods(events, threshold, min_online, assumed_hour)
+        daily_timezones = _compute_daily_timezones(sleep_periods)
+        storage.replace_sleep_periods(user_id, sleep_periods)
+        storage.replace_daily_timezones(user_id, daily_timezones)
+        if daily_timezones:
+            storage.update_user_tz(user_id, daily_timezones[-1].offset_hours)
+        return
+
+    # ── Incremental path ──
+    today = datetime.now(timezone.utc).date()
+    window_start = (today - timedelta(days=_UNFROZEN_DAYS)).strftime("%Y-%m-%d")
+    # Read events a couple of days further back to anchor a boundary-straddling
+    # sleep period; these extra days are detected but filtered out before write.
+    read_since = (today - timedelta(days=_UNFROZEN_DAYS + _READ_MARGIN_DAYS)).strftime(
+        "%Y-%m-%dT00:00:00Z"
+    )
+
+    events = storage.get_events_since(user_id, read_since)
     if not events:
         return
 
-    sleep_periods = _detect_sleep_periods(events, threshold, min_online, assumed_hour)
-    daily_timezones = _compute_daily_timezones(sleep_periods)
+    detected = _detect_sleep_periods(events, threshold, min_online, assumed_hour)
+    # Keep only days inside the unfrozen window; the read-margin days are
+    # already frozen and must not be rewritten.
+    window_periods = [sp for sp in detected if sp.date >= window_start]
+    window_tzs = _compute_daily_timezones(window_periods)
 
-    storage.replace_sleep_periods(user_id, sleep_periods)
-    storage.replace_daily_timezones(user_id, daily_timezones)
+    storage.replace_sleep_periods_since(user_id, window_start, window_periods)
+    storage.replace_daily_timezones_since(user_id, window_start, window_tzs)
 
-    if daily_timezones:
-        storage.update_user_tz(user_id, daily_timezones[-1].offset_hours)
+    if window_tzs:
+        storage.update_user_tz(user_id, window_tzs[-1].offset_hours)

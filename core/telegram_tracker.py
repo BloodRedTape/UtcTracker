@@ -122,6 +122,10 @@ class TelegramTracker:
                 )
                 self.tracked_users[entity.id] = internal_uid
                 self._labels[internal_uid] = label
+                # One-time full recompute on startup: re-freezes old days and
+                # picks up any events backfilled while the bot was down. Per-
+                # event analysis afterwards is incremental (last few days only).
+                sleep_detector.analyze(internal_uid, self._tracking_config, full=True)
                 log.info("Tracking user: %s (tg_id=%d, uid=%d, username=%s)", label, entity.id, internal_uid, username)
             except Exception as e:
                 log.error("Failed to resolve user '%s': %s", telegram_id, e)
