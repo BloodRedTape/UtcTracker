@@ -348,6 +348,34 @@ def get_all_events_for_user(user_id: int) -> list[StatusEvent]:
     return [StatusEvent(r["timestamp_utc"], r["status"], r["raw_status_type"], r["source"]) for r in rows]
 
 
+def get_events_since(user_id: int, since_utc: str) -> list[StatusEvent]:
+    """Events at/after `since_utc`, plus each source's last event before it.
+
+    The trailing "before" event per source anchors a period that was already
+    online when the window opened, so the caller can render it correctly
+    without scanning the whole history. Returned sorted by timestamp.
+    """
+    conn = _get_conn()
+    # All events inside the window.
+    in_window = conn.execute(
+        "SELECT timestamp_utc, status, raw_status_type, source FROM events "
+        "WHERE user_id = ? AND timestamp_utc >= ? ORDER BY timestamp_utc",
+        (user_id, since_utc),
+    ).fetchall()
+    # The latest event before the window, one per source, to anchor an
+    # already-open period.
+    anchors = conn.execute(
+        "SELECT e.timestamp_utc, e.status, e.raw_status_type, e.source FROM events e "
+        "JOIN (SELECT source, MAX(timestamp_utc) AS mts FROM events "
+        "      WHERE user_id = ? AND timestamp_utc < ? GROUP BY source) m "
+        "  ON e.source = m.source AND e.timestamp_utc = m.mts "
+        "WHERE e.user_id = ? AND e.timestamp_utc < ?",
+        (user_id, since_utc, user_id, since_utc),
+    ).fetchall()
+    rows = sorted(anchors + in_window, key=lambda r: r["timestamp_utc"])
+    return [StatusEvent(r["timestamp_utc"], r["status"], r["raw_status_type"], r["source"]) for r in rows]
+
+
 def get_last_event(user_id: int) -> Optional[StatusEvent]:
     row = _get_conn().execute(
         "SELECT timestamp_utc, status, raw_status_type, source FROM events "

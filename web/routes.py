@@ -1,13 +1,141 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Any, Callable
 
 from fastapi import APIRouter, Query, HTTPException, status
 
 from core import storage
-from web.security import validate_user_id, validate_date_format, validate_pagination
+from web.security import validate_user_id
+
+# ── Runtime cache ──────────────────────────────────────
+#
+# Domain fact: a user's history older than ~4 days is effectively immutable.
+# Sleep detection only ever rewrites recent periods, and old events don't
+# change. So once a request whose date range is entirely "stale" has been
+# computed, its result is stable until either the process restarts or the
+# calendar day rolls over (which can shift the stale/fresh boundary).
+#
+# We cache the *fully-built response object*. Every cache key's first element
+# is the UTC "day bucket" it was computed for. Bucketing by day gives free
+# expiry: on a new day, new keys are used and stale-day entries are swept out
+# on the next miss (keeping memory bounded without a TTL mechanism). A query
+# that touches the live (last-4-days) window is never cached.
+
+_CACHE_FRESH_DAYS = 4
+_cache: dict[tuple, Any] = {}
+
+
+def _today_utc() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+
+def _fresh_boundary() -> str:
+    """Oldest date (YYYY-MM-DD) still in the 'fresh' / mutable window.
+
+    Dates >= this are recomputed live; dates < this are immutable.
+    """
+    today = datetime.now(timezone.utc)
+    return (today - timedelta(days=_CACHE_FRESH_DAYS)).strftime("%Y-%m-%d")
+
+
+def _day_before(date_str: str) -> str:
+    return (datetime.strptime(date_str, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def _cached_date_range(
+    name: str,
+    user_id: int,
+    fetch: Callable[[Optional[str], Optional[str]], list],
+) -> list:
+    """Serve a full-history, date-keyed list endpoint with a cached older half.
+
+    These endpoints always return the user's whole history. The response is
+    split at the fresh boundary:
+      • dates older than the boundary are immutable → built once, cached for
+        the day;
+      • the last ~4 days (date >= boundary) are fetched live every time.
+
+    `fetch(from, to)` filters records inclusively by their own `date` field, so
+    the stale half ends the day *before* the boundary to avoid overlap.
+    """
+    boundary = _fresh_boundary()         # first fresh day
+    stale_end = _day_before(boundary)    # last stale day (inclusive)
+
+    key = (name, user_id)
+    stale = _cached(_today_utc(), key, lambda: fetch(None, stale_end))
+    fresh = fetch(boundary, None)
+    return stale + fresh
+
+
+def _cached(day: str, key: tuple, build: Callable[[], Any]) -> Any:
+    """Return cached value for `key`, computing it on a miss.
+
+    `day` is the UTC day bucket this entry belongs to and is prepended to the
+    stored key. On a miss we first drop any entries from other days so the
+    cache cannot grow without bound across long uptimes.
+    """
+    full_key = (day,) + key
+    if full_key in _cache:
+        return _cache[full_key]
+    # Sweep entries from other day buckets.
+    stale = [k for k in _cache if k[0] != day]
+    for k in stale:
+        del _cache[k]
+    value = build()
+    _cache[full_key] = value
+    return value
+
+
+# If two consecutive `online` events are far apart, an `offline` event
+# between them was likely missed (bot restart, network hiccup, Telegram
+# UserUpdate dropped). Closing the first period at the first online's own
+# timestamp prevents fake multi-hour online stretches.
+_MAX_ONLINE_GAP_SECONDS = 600
+
+
+def _parse_ts(ts: str) -> datetime:
+    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+
+
+def _build_online_periods(events_by_source: dict[str, list]) -> list[dict]:
+    """Turn per-source event lists into online intervals.
+
+    `events_by_source` maps a source name to its events sorted by timestamp.
+    An unterminated trailing `online` is closed at "now".
+    """
+    online_periods: list[dict] = []
+    for source, evts in events_by_source.items():
+        i = 0
+        while i < len(evts):
+            if evts[i].status == "online":
+                start = evts[i].timestamp_utc
+                # Walk through consecutive `online` events, but split if the
+                # gap between them exceeds _MAX_ONLINE_GAP_SECONDS.
+                split_end: Optional[str] = None
+                while i + 1 < len(evts) and evts[i + 1].status == "online":
+                    gap = (_parse_ts(evts[i + 1].timestamp_utc)
+                           - _parse_ts(evts[i].timestamp_utc)).total_seconds()
+                    if gap > _MAX_ONLINE_GAP_SECONDS:
+                        split_end = evts[i].timestamp_utc
+                        break
+                    i += 1
+                if split_end is not None:
+                    online_periods.append({"start": start, "end": split_end, "source": source})
+                    i += 1
+                    continue
+                if i + 1 < len(evts) and evts[i + 1].status == "offline":
+                    end = evts[i + 1].timestamp_utc
+                    i += 2
+                else:
+                    end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                    i += 1
+                online_periods.append({"start": start, "end": end, "source": source})
+            else:
+                i += 1
+    online_periods.sort(key=lambda p: p["start"])
+    return online_periods
 
 
 def _format_tz(offset: Optional[float]) -> str:
@@ -60,73 +188,50 @@ def create_router() -> APIRouter:
             )
         return _user_summary(user)
 
-    @router.get("/users/{user_id}/events")
-    async def get_events(
-        user_id: int,
-        from_date: Optional[str] = Query(None, alias="from"),
-        to_date: Optional[str] = Query(None, alias="to"),
-        page: int = Query(1, ge=1),
-        per_page: int = Query(200, ge=1, le=1000),
-    ):
-        validate_user_id(user_id)
-        validate_pagination(page, per_page)
-        if from_date:
-            validate_date_format(from_date, "from")
-        if to_date:
-            validate_date_format(to_date, "to")
-
-        user = storage.get_user(user_id)
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
-            )
-
-        offset = (page - 1) * per_page
-        events, total = storage.get_events(user_id, from_date, to_date, per_page, offset)
-
-        return {
-            "events": [asdict(e) for e in events],
-            "total": total,
-            "page": page,
-            "per_page": per_page,
-        }
-
     @router.get("/users/{user_id}/sleep-periods")
-    async def get_sleep_periods(
-        user_id: int,
-        from_date: Optional[str] = Query(None, alias="from"),
-        to_date: Optional[str] = Query(None, alias="to"),
-    ):
+    async def get_sleep_periods(user_id: int):
         validate_user_id(user_id)
-        if from_date:
-            validate_date_format(from_date, "from")
-        if to_date:
-            validate_date_format(to_date, "to")
-
-        periods = storage.get_sleep_periods(user_id, from_date, to_date)
-        return [asdict(sp) for sp in periods]
+        return _cached_date_range(
+            "sleep-periods", user_id,
+            lambda f, t: [asdict(sp) for sp in storage.get_sleep_periods(user_id, f, t)],
+        )
 
     @router.get("/users/{user_id}/timezone-history")
-    async def get_timezone_history(
-        user_id: int,
-        from_date: Optional[str] = Query(None, alias="from"),
-        to_date: Optional[str] = Query(None, alias="to"),
-    ):
+    async def get_timezone_history(user_id: int):
         validate_user_id(user_id)
-        if from_date:
-            validate_date_format(from_date, "from")
-        if to_date:
-            validate_date_format(to_date, "to")
+        return _cached_date_range(
+            "timezone-history", user_id,
+            lambda f, t: [asdict(dt) for dt in storage.get_daily_timezones(user_id, f, t)],
+        )
 
-        history = storage.get_daily_timezones(user_id, from_date, to_date)
-        return [asdict(dt) for dt in history]
+    @router.get("/users/{user_id}/online-periods")
+    async def get_online_periods(
+        user_id: int,
+        hours: int = Query(48, ge=1, le=24 * 30),
+    ):
+        """Online intervals for the activity timeline, limited to a window.
+
+        Only the requested window is read and built, so cost scales with the
+        window — not the user's whole history. A period that was already open
+        when the window started is anchored by each source's last prior event
+        (the frontend clamps it to its own left edge).
+        """
+        validate_user_id(user_id)
+        since = (datetime.now(timezone.utc) - timedelta(hours=hours)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        events = storage.get_events_since(user_id, since)
+
+        events_by_source: dict[str, list] = {}
+        for ev in events:
+            events_by_source.setdefault(ev.source, []).append(ev)
+
+        return {
+            "user_id": user_id,
+            "window_hours": hours,
+            "online_periods": _build_online_periods(events_by_source),
+        }
 
     @router.get("/users/{user_id}/stats")
-    async def get_stats(
-        user_id: int,
-        days: int = Query(30, ge=1, le=365),
-    ):
+    async def get_stats(user_id: int):
         validate_user_id(user_id)
         user = storage.get_user(user_id)
         if user is None:
@@ -135,8 +240,8 @@ def create_router() -> APIRouter:
                 detail="User not found",
             )
 
+        # All cheap reads from pre-aggregated tables — no event scan here.
         daily_tzs = storage.get_daily_timezones(user_id)
-        sleep_periods = storage.get_sleep_periods(user_id)
 
         # Wakeup times for the scatter plot
         wakeup_times = []
@@ -152,63 +257,14 @@ def create_router() -> APIRouter:
             except (ValueError, AttributeError):
                 pass
 
-        # Online periods for the activity timeline (per source)
-        all_events = storage.get_all_events_for_user(user_id)
-        # Split events by source
-        events_by_source: dict[str, list] = {}
-        for ev in all_events:
-            events_by_source.setdefault(ev.source, []).append(ev)
-
-        # If two consecutive `online` events are far apart, an `offline`
-        # event between them was likely missed (bot restart, network hiccup,
-        # Telegram UserUpdate dropped). Closing the first period at the first
-        # online's own timestamp prevents fake multi-hour online stretches.
-        MAX_ONLINE_GAP_SECONDS = 600
-
-        def _parse_ts(ts: str) -> datetime:
-            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
-
-        online_periods = []
-        for source, evts in events_by_source.items():
-            i = 0
-            while i < len(evts):
-                if evts[i].status == "online":
-                    start = evts[i].timestamp_utc
-                    # Walk through consecutive `online` events, but split if
-                    # the gap between them exceeds MAX_ONLINE_GAP_SECONDS.
-                    split_end: Optional[str] = None
-                    while i + 1 < len(evts) and evts[i + 1].status == "online":
-                        gap = (_parse_ts(evts[i + 1].timestamp_utc)
-                               - _parse_ts(evts[i].timestamp_utc)).total_seconds()
-                        if gap > MAX_ONLINE_GAP_SECONDS:
-                            split_end = evts[i].timestamp_utc
-                            break
-                        i += 1
-                    if split_end is not None:
-                        online_periods.append({"start": start, "end": split_end, "source": source})
-                        i += 1
-                        continue
-                    if i + 1 < len(evts) and evts[i + 1].status == "offline":
-                        end = evts[i + 1].timestamp_utc
-                        i += 2
-                    else:
-                        end = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-                        i += 1
-                    online_periods.append({"start": start, "end": end, "source": source})
-                else:
-                    i += 1
-        online_periods.sort(key=lambda p: p["start"])
-
         offsets_seen = sorted(set(dt.offset_hours for dt in daily_tzs))
 
         return {
             "user_id": user_id,
-            "period_days": days,
             "total_events": storage.get_events_count(user_id),
-            "total_sleep_periods": len(sleep_periods),
+            "total_sleep_periods": len(storage.get_sleep_periods(user_id)),
             "timezone_offsets_seen": offsets_seen,
-            "wakeup_times": wakeup_times[-days:],
-            "online_periods": online_periods[-500:],
+            "wakeup_times": wakeup_times,
         }
 
     return router

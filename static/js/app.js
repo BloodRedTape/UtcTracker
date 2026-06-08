@@ -153,11 +153,12 @@ async function selectUser(userId) {
     document.getElementById('detailSection').classList.remove('hidden');
 
     // Fetch data in parallel
-    const [user, sleepPeriods, tzHistory, stats] = await Promise.all([
+    const [user, sleepPeriods, tzHistory, stats, onlinePeriods] = await Promise.all([
         fetchJSON(`/api/users/${userId}`),
         fetchJSON(`/api/users/${userId}/sleep-periods`),
         fetchJSON(`/api/users/${userId}/timezone-history`),
         fetchJSON(`/api/users/${userId}/stats`),
+        fetchJSON(`/api/users/${userId}/online-periods?hours=48`),
     ]);
 
     // Update header
@@ -176,7 +177,7 @@ async function selectUser(userId) {
     statusBadge.className = 'status-badge ' + (user.current_status || 'offline');
 
     // Render charts
-    renderTimelineChart(stats.online_periods || []);
+    renderTimelineChart(onlinePeriods.online_periods || []);
     renderWakeupChart(stats.wakeup_times || []);
     renderSleepPatternChart(sleepPeriods || []);
     renderSleepDurationChart(sleepPeriods || []);
