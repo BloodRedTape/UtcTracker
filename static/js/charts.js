@@ -1,4 +1,4 @@
-// NickUtc - Chart.js Chart Definitions (theme-aware)
+// UtcTracker - Chart.js Chart Definitions (theme-aware)
 
 let timelineChartInstance = null;
 let sleepDurationChartInstance = null;

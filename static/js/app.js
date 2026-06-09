@@ -1,4 +1,4 @@
-// NickUtc - Frontend Application Logic
+// UtcTracker - Frontend Application Logic
 
 let selectedUserId = null;
 let refreshTimer = null;
