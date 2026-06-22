@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 from pathlib import Path
+
+mimetypes.add_type("application/manifest+json", ".webmanifest")
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
