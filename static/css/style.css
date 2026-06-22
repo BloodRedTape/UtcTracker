@@ -125,7 +125,7 @@ header {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 16px 24px;
+    padding: calc(16px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) 16px calc(24px + env(safe-area-inset-left));
     background: var(--card);
     border-bottom: 1px solid var(--border);
     box-shadow: var(--shadow);
@@ -224,7 +224,7 @@ header h1 {
 main {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 24px;
+    padding: 24px calc(24px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
 }
 
 h2 {
@@ -511,7 +511,7 @@ td {
 @media (max-width: 599px) {
     header {
         flex-wrap: wrap;
-        padding: 12px 16px;
+        padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 12px calc(16px + env(safe-area-inset-left));
         gap: 8px;
     }
 
@@ -526,7 +526,7 @@ td {
     }
 
     main {
-        padding: 12px;
+        padding: 12px calc(12px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
     }
 
     h2 {
