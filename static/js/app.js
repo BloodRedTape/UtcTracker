@@ -124,7 +124,7 @@ function formatFellAsleep(offlineIso, wakeDateStr) {
     const wakeMs = Date.UTC(wakeYear, wakeMonth - 1, wakeDay);
     const diffDays = Math.round((wakeMs - fellMs) / 86400000);
 
-    return diffDays > 0 ? `${time} <span class="sleep-prev-day">−${diffDays}d</span>` : time;
+    return diffDays > 0 ? `${time}<span class="sleep-prev-day">−${diffDays}d</span>` : time;
 }
 
 // --- API ---

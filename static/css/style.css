@@ -125,7 +125,8 @@ header {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: calc(16px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-left));
+    padding: 16px calc(24px + env(safe-area-inset-right)) 16px calc(24px + env(safe-area-inset-left));
+    padding-top: calc(16px + env(safe-area-inset-top));
     background: var(--card);
     border-bottom: 1px solid var(--border);
     box-shadow: var(--shadow);
@@ -430,7 +431,7 @@ td {
 .sleep-prev-day {
     font-size: 0.75rem;
     color: var(--muted-foreground);
-    margin-left: 4px;
+    margin-left: 2px;
     white-space: nowrap;
 }
 
@@ -521,7 +522,8 @@ td {
 /* Mobile (<600px) */
 @media (max-width: 599px) {
     header {
-        padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-left));
+        padding: 12px calc(16px + env(safe-area-inset-right)) 12px calc(16px + env(safe-area-inset-left));
+        padding-top: calc(12px + env(safe-area-inset-top));
         gap: 8px;
     }
 
@@ -650,7 +652,8 @@ td {
     /* Other tables keep scroll */
     .sleep-table-section .table-scroll table,
     .tz-table-section .table-scroll table {
-        min-width: unset;
+        min-width: max-content;
+        white-space: nowrap;
     }
 
     th, td {
