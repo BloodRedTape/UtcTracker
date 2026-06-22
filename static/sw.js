@@ -1,5 +1,5 @@
 // UtcTracker service worker — shell cache, network-first for API.
-const VERSION = 'utctracker-v2';
+const VERSION = 'utctracker-v5';
 const SHELL = [
   '/',
   '/index.html',

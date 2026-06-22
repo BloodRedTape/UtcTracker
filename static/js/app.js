@@ -104,14 +104,14 @@ async function loadUsers() {
     const tbody = document.getElementById('usersBody');
 
     if (!users.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="loading">No tracked users yet. Waiting for data...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="loading">No tracked users yet. Waiting for data...</td></tr>';
         return;
     }
 
     tbody.innerHTML = users.map(u => {
         const userLocalTime = getUserLocalTime(u.current_tz_offset);
         const tzDisplay = u.timezone_display !== 'N/A'
-            ? `${u.timezone_display}<br><span class="user-time" data-offset="${u.current_tz_offset}">${userLocalTime}</span>`
+            ? `<span class="user-local-time" data-offset="${u.current_tz_offset}">${userLocalTime}</span><br><span class="user-time">${u.timezone_display}</span>`
             : 'N/A';
         const sourceBadges = [
             u.telegram_id ? `<span class="source-badge tg ${u.telegram_status || ''}" title="Telegram: ${u.telegram_status || 'unknown'}">TG</span>` : '',
@@ -124,7 +124,6 @@ async function loadUsers() {
                 <td>${u.username ? '@' + escapeHtml(u.username) : '-'}</td>
                 <td class="tz-offset">${tzDisplay}</td>
                 <td>${timeAgo(u.last_event_utc)}</td>
-                <td>${u.events_count}</td>
             </tr>
         `;
     }).join('');
@@ -245,7 +244,7 @@ function setupAutoRefresh() {
 
 function updateUserLocalTimes() {
     // Update local times in the users table
-    document.querySelectorAll('#usersTable .user-time').forEach(timeSpan => {
+    document.querySelectorAll('#usersTable .user-local-time').forEach(timeSpan => {
         const offset = parseFloat(timeSpan.dataset.offset);
         if (!isNaN(offset)) {
             timeSpan.textContent = getUserLocalTime(offset);
