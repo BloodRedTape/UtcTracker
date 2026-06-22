@@ -125,7 +125,7 @@ header {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: calc(16px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) 16px calc(24px + env(safe-area-inset-left));
+    padding: calc(16px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right)) calc(16px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-left));
     background: var(--card);
     border-bottom: 1px solid var(--border);
     box-shadow: var(--shadow);
@@ -427,6 +427,12 @@ td {
     margin-top: 2px;
 }
 
+.sleep-prev-day {
+    font-size: 0.75rem;
+    color: var(--muted-foreground);
+    margin-left: 4px;
+}
+
 /* ===== Source Badges ===== */
 
 .source-badge {
@@ -588,11 +594,15 @@ td {
     }
 
     #usersTable td:nth-child(4) { /* Timezone */
-        grid-row: 1;
+        grid-row: 1 / 3;
         grid-column: 3;
         padding: 0;
         border: none;
         text-align: right;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-self: stretch;
     }
 
     /* Row 2: hidden | last seen | events count */
@@ -620,6 +630,10 @@ td {
     }
     #usersTable td:nth-child(6)::before {
         content: "events: ";
+    }
+
+    #usersTable td:nth-child(4) .user-time {
+        margin-top: 0;
     }
 
     .table-scroll:has(#usersTable) {

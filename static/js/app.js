@@ -87,6 +87,46 @@ function formatHours(h) {
     return `${hours}h ${minutes}m`;
 }
 
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function formatSleepDate(dateStr) {
+    // dateStr is YYYY-MM-DD (already local date from backend)
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const currentYear = new Date().getFullYear();
+    const d = parseInt(day, 10);
+    const m = MONTH_NAMES[month - 1];
+    return year === currentYear ? `${d} ${m}` : `${d} ${m} ${year}`;
+}
+
+function formatTimeHHMM(isoStr) {
+    if (!isoStr) return '-';
+    const d = new Date(isoStr);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+}
+
+function formatFellAsleep(offlineIso, wakeDateStr) {
+    // wakeDateStr is the sleep period's date (YYYY-MM-DD) = woke up date
+    if (!offlineIso) return '-';
+    const d = new Date(offlineIso);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    const time = `${h}:${m}`;
+
+    // Compare local date of fell-asleep with woke-up date
+    const fellYear = d.getFullYear();
+    const fellMonth = d.getMonth() + 1;
+    const fellDay = d.getDate();
+    const [wakeYear, wakeMonth, wakeDay] = wakeDateStr.split('-').map(Number);
+
+    const fellMs = Date.UTC(fellYear, fellMonth - 1, fellDay);
+    const wakeMs = Date.UTC(wakeYear, wakeMonth - 1, wakeDay);
+    const diffDays = Math.round((wakeMs - fellMs) / 86400000);
+
+    return diffDays > 0 ? `${time} <span class="sleep-prev-day">−${diffDays}d</span>` : time;
+}
+
 // --- API ---
 
 async function fetchJSON(url) {
@@ -187,9 +227,9 @@ async function selectUser(userId) {
     const sortedSleep = [...sleepPeriods].reverse();
     sleepBody.innerHTML = sortedSleep.slice(0, 50).map(sp => `
         <tr>
-            <td>${sp.date}</td>
-            <td>${formatDateTime(sp.offline_at_utc)}</td>
-            <td>${formatDateTime(sp.online_at_utc)}</td>
+            <td>${formatSleepDate(sp.date)}</td>
+            <td>${formatFellAsleep(sp.offline_at_utc, sp.date)}</td>
+            <td>${formatTimeHHMM(sp.online_at_utc)}</td>
             <td>${formatHours(sp.gap_hours)}</td>
             <td class="tz-offset">${formatTz(sp.estimated_tz_offset)}</td>
         </tr>
@@ -200,9 +240,9 @@ async function selectUser(userId) {
     const sortedTz = [...(tzHistory || [])].reverse();
     tzBody.innerHTML = sortedTz.slice(0, 50).map(dt => `
         <tr>
-            <td>${dt.date}</td>
+            <td>${formatSleepDate(dt.date)}</td>
             <td class="tz-offset">${formatTz(dt.offset_hours)}</td>
-            <td>${formatDateTime(dt.wakeup_utc)}</td>
+            <td>${formatTimeHHMM(dt.wakeup_utc)}</td>
         </tr>
     `).join('') || '<tr><td colspan="3" class="loading">No timezone data yet</td></tr>';
 }
