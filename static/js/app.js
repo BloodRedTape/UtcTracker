@@ -228,8 +228,8 @@ async function selectUser(userId) {
     sleepBody.innerHTML = sortedSleep.slice(0, 50).map(sp => `
         <tr>
             <td>${formatSleepDate(sp.date)}</td>
-            <td>${formatFellAsleep(sp.offline_at_utc, sp.date)}</td>
             <td>${formatTimeHHMM(sp.online_at_utc)}</td>
+            <td class="sleep-time-cell">${formatFellAsleep(sp.offline_at_utc, sp.date)}</td>
             <td>${formatHours(sp.gap_hours)}</td>
             <td class="tz-offset">${formatTz(sp.estimated_tz_offset)}</td>
         </tr>

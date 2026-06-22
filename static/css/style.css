@@ -431,6 +431,11 @@ td {
     font-size: 0.75rem;
     color: var(--muted-foreground);
     margin-left: 4px;
+    white-space: nowrap;
+}
+
+.sleep-time-cell {
+    white-space: nowrap;
 }
 
 /* ===== Source Badges ===== */
@@ -516,8 +521,7 @@ td {
 /* Mobile (<600px) */
 @media (max-width: 599px) {
     header {
-        flex-wrap: wrap;
-        padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 12px calc(16px + env(safe-area-inset-left));
+        padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-left));
         gap: 8px;
     }
 
@@ -526,8 +530,6 @@ td {
     }
 
     .header-actions {
-        width: 100%;
-        justify-content: flex-end;
         gap: 8px;
     }
 
@@ -566,7 +568,6 @@ td {
         border-radius: var(--radius);
         margin-bottom: 8px;
         background: var(--card);
-        align-items: center;
     }
 
     #usersTable tbody tr.active {
@@ -580,6 +581,7 @@ td {
         padding: 0;
         border: none;
         font-size: 0;
+        align-self: center;
     }
     #usersTable td:nth-child(1) .status-dot {
         margin-right: 0;
@@ -591,6 +593,7 @@ td {
         padding: 0;
         border: none;
         font-weight: 600;
+        align-self: center;
     }
 
     #usersTable td:nth-child(4) { /* Timezone */
@@ -602,7 +605,6 @@ td {
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        align-self: stretch;
     }
 
     /* Row 2: hidden | last seen | events count */
@@ -617,6 +619,7 @@ td {
         border: none;
         font-size: 0.8rem;
         color: var(--muted-foreground);
+        align-self: center;
     }
 
     #usersTable td:nth-child(6) { /* Events */
