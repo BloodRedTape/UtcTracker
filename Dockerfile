@@ -9,6 +9,7 @@ COPY core/ core/
 COPY web/ web/
 COPY static/ static/
 COPY main.py .
+COPY add_manual.py .
 
 VOLUME ["/data"]
 
