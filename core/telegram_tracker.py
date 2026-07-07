@@ -205,12 +205,15 @@ class TelegramTracker:
             source="telegram",
         )
 
-        log.info(
-            "User %d [%s]: %s at %s (polled)",
-            tg_entity_id, self._labels.get(internal_uid, "?"), status_str, ts,
-        )
-
+        # Only log/analyze when the status actually changed. append_event
+        # dedups consecutive same-status events per source and returns False
+        # when nothing was stored — otherwise polling would log every user on
+        # every poll cycle, even when nobody's status moved.
         if storage.append_event(internal_uid, event_obj):
+            log.info(
+                "User %d [%s]: %s at %s (polled)",
+                tg_entity_id, self._labels.get(internal_uid, "?"), status_str, ts,
+            )
             sleep_detector.analyze(internal_uid, self._tracking_config)
 
     async def disconnect(self):

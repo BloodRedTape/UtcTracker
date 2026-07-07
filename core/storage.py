@@ -327,7 +327,11 @@ def append_event(user_id: int, event: StatusEvent) -> bool:
     cur.execute(_RECOMPUTE_CURRENT_STATUS, (user_id,))
 
     conn.commit()
-    return True
+    # True only when a new event was actually stored (status changed). When the
+    # last two events already had this status we just refreshed the timestamp
+    # and dedup collapsed it — callers use this to avoid re-logging and
+    # re-running sleep detection on every poll cycle.
+    return should_insert
 
 
 def get_events(
