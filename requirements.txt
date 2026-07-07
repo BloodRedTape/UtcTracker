@@ -4,3 +4,5 @@ fastapi>=0.104
 uvicorn[standard]>=0.24
 # Security dependencies
 cryptography>=41.0.0  # For secure data handling
+# Monitoring (GlitchTip / Sentry). enable_logs requires sentry-sdk>=2.20
+sentry-sdk>=2.20.0

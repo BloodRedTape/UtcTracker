@@ -5,5 +5,10 @@ services:
     restart: unless-stopped
     ports:
       - "7111:7111"
+    environment:
+      # GlitchTip error/log reporting. Leave unset to disable monitoring.
+      - GLITCHTIP_DSN=${GLITCHTIP_DSN:-}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - SERVICE_NAME=${SERVICE_NAME:-nickutc}
     volumes:
       - ./run_tree:/data

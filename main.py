@@ -8,7 +8,7 @@ from pathlib import Path
 import uvicorn
 
 from core.telegram_tracker import TelegramTracker
-from core import storage
+from core import storage, monitoring
 from web.server import create_app
 
 logging.basicConfig(
@@ -41,6 +41,10 @@ async def main():
     args = parse_args()
     data_dir = str(Path(args.data_dir).resolve())
     config = load_config(data_dir)
+
+    # Initialize GlitchTip/Sentry monitoring as early as possible so that any
+    # subsequent startup error is captured. No-op if no DSN is configured.
+    monitoring.init_sentry(config)
 
     # Initialize SQLite database
     db_path = str(Path(data_dir) / "nickutc.db")
@@ -86,7 +90,14 @@ async def main():
     tasks.append(server.serve())
 
     # Run all concurrently
-    await asyncio.gather(*tasks)
+    try:
+        await asyncio.gather(*tasks)
+    except Exception as e:
+        # Send the fatal error to GlitchTip Issues before it propagates.
+        monitoring.capture_exception(e)
+        raise
+    finally:
+        monitoring.flush()
 
 
 if __name__ == "__main__":
