@@ -9,6 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 
+from core import storage
 from web.routes import create_router
 from web.security import RateLimitMiddleware
 
@@ -99,6 +100,19 @@ def create_app() -> FastAPI:
 
     router = create_router()
     app.include_router(router, prefix="/api")
+
+    # Health check endpoint for container orchestration (docker healthcheck).
+    # Registered before the static mount below, which owns "/" and would
+    # otherwise swallow this path. Pings the DB so "healthy" means the
+    # storage layer is actually reachable, not just that the process is up.
+    @app.get("/health")
+    async def health():
+        try:
+            storage.get_all_users()
+        except Exception as exc:
+            log.error("Health check failed: %s", exc, exc_info=True)
+            return JSONResponse(status_code=503, content={"status": "unhealthy"})
+        return {"status": "ok"}
 
     # Serve static files (dashboard HTML/CSS/JS)
     # Use absolute path to prevent path traversal attacks
