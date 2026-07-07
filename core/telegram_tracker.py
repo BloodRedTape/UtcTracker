@@ -134,11 +134,39 @@ class TelegramTracker:
             log.warning("No Telegram users to track! Check your config.json tracked_users list.")
 
     async def run(self):
-        """Run the client event loop + polling fallback."""
+        """Run the client event loop + polling fallback.
+
+        The polling loop runs forever on its own. The event loop
+        (``run_until_disconnected``) can end when Telethon loses the
+        connection and cannot reconnect on its own; if that happens we
+        reconnect and resume instead of letting the whole tracker die
+        (which would silently kill the polling fallback too).
+        """
         await asyncio.gather(
-            self.client.run_until_disconnected(),
+            self._event_loop(),
             self._poll_loop(),
         )
+
+    async def _event_loop(self):
+        """Keep the Telethon update listener alive across disconnects."""
+        while True:
+            try:
+                coro = self.client.run_until_disconnected()
+                if coro is not None:
+                    await coro
+                log.warning("Telegram event loop ended (client disconnected); reconnecting...")
+            except Exception as e:
+                log.warning("Telegram event loop error: %s; reconnecting...", e)
+
+            # Reconnect and keep going. The polling loop stays alive regardless,
+            # so status tracking continues even if reconnect is briefly failing.
+            try:
+                if not self.client.is_connected():
+                    await self.client.connect()
+                log.info("Telegram client reconnected")
+            except Exception as e:
+                log.warning("Telegram reconnect failed: %s; retrying in 30s", e)
+                await asyncio.sleep(30)
 
     async def _poll_loop(self):
         """Periodically poll user status as a fallback for missed events."""
@@ -151,7 +179,7 @@ class TelegramTracker:
                     if user.status is not None:
                         self._process_polled_status(tg_entity_id, user.status)
                 except Exception as e:
-                    log.debug("Poll error for user %d: %s", tg_entity_id, e)
+                    log.warning("Poll error for user %d: %s", tg_entity_id, e)
 
     def _process_polled_status(self, tg_entity_id: int, status):
         """Process a polled status the same way as an event."""
@@ -175,6 +203,11 @@ class TelegramTracker:
             status=status_str,
             raw_status_type=raw_type,
             source="telegram",
+        )
+
+        log.info(
+            "User %d [%s]: %s at %s (polled)",
+            tg_entity_id, self._labels.get(internal_uid, "?"), status_str, ts,
         )
 
         if storage.append_event(internal_uid, event_obj):
