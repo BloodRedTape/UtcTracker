@@ -44,6 +44,7 @@ _SCHEMA_NEW = """
         current_status      TEXT,
         telegram_status     TEXT,
         discord_status      TEXT,
+        manual_status       TEXT,
         current_tz_offset   REAL
     );
 
@@ -100,6 +101,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
     if "telegram_id" in columns:
         # Already migrated — just ensure indexes/tables exist
         conn.executescript(_SCHEMA_NEW)
+        # Add manual_status column if this DB predates the manual source.
+        if "manual_status" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN manual_status TEXT")
+            conn.commit()
         return
 
     # ── Legacy migration: old schema has user_id as direct Telegram ID ──
@@ -118,6 +123,7 @@ def _migrate(conn: sqlite3.Connection) -> None:
             current_status      TEXT,
             telegram_status     TEXT,
             discord_status      TEXT,
+            manual_status       TEXT,
             current_tz_offset   REAL
         );
 
@@ -159,6 +165,32 @@ def _migrate(conn: sqlite3.Connection) -> None:
 
 
 # ── Users ──────────────────────────────────────────────
+
+# Maps an event source to its per-source status column on `users`.
+_STATUS_COLUMN = {
+    "telegram": "telegram_status",
+    "discord": "discord_status",
+    "manual": "manual_status",
+}
+
+# SQL fragment recomputing combined current_status from all per-source columns.
+_RECOMPUTE_CURRENT_STATUS = """
+    UPDATE users SET current_status =
+        CASE WHEN telegram_status = 'online'
+               OR discord_status = 'online'
+               OR manual_status = 'online'
+             THEN 'online' ELSE 'offline' END
+    WHERE user_id = ?
+"""
+
+
+def _status_column(source: str) -> str:
+    """Return the per-source status column for an event source.
+
+    Defaults to telegram_status for unknown sources to stay backward-compatible.
+    """
+    return _STATUS_COLUMN.get(source, "telegram_status")
+
 
 def ensure_user(
     label: str,
@@ -232,15 +264,10 @@ def get_all_users() -> list[dict]:
 def update_user_status(user_id: int, status: str, source: str = "telegram") -> None:
     """Update per-source status and recompute combined current_status."""
     conn = _get_conn()
-    col = "telegram_status" if source == "telegram" else "discord_status"
+    col = _status_column(source)
     conn.execute(f"UPDATE users SET {col} = ? WHERE user_id = ?", (status, user_id))
     # Recompute: online if any source is online
-    conn.execute("""
-        UPDATE users SET current_status =
-            CASE WHEN telegram_status = 'online' OR discord_status = 'online'
-                 THEN 'online' ELSE 'offline' END
-        WHERE user_id = ?
-    """, (user_id,))
+    conn.execute(_RECOMPUTE_CURRENT_STATUS, (user_id,))
     conn.commit()
 
 
@@ -290,14 +317,9 @@ def append_event(user_id: int, event: StatusEvent) -> bool:
         )
 
     # Update per-source status
-    col = "telegram_status" if source == "telegram" else "discord_status"
+    col = _status_column(source)
     cur.execute(f"UPDATE users SET {col} = ? WHERE user_id = ?", (event.status, user_id))
-    cur.execute("""
-        UPDATE users SET current_status =
-            CASE WHEN telegram_status = 'online' OR discord_status = 'online'
-                 THEN 'online' ELSE 'offline' END
-        WHERE user_id = ?
-    """, (user_id,))
+    cur.execute(_RECOMPUTE_CURRENT_STATUS, (user_id,))
 
     conn.commit()
     return True

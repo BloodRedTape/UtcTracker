@@ -160,6 +160,7 @@ def _user_summary(user: dict) -> dict:
         "current_status": user["current_status"],
         "telegram_status": user.get("telegram_status"),
         "discord_status": user.get("discord_status"),
+        "manual_status": user.get("manual_status"),
         "telegram_id": user.get("telegram_id"),
         "discord_id": user.get("discord_id"),
         "current_tz_offset": user["current_tz_offset"],
