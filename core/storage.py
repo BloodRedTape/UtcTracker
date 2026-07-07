@@ -22,6 +22,11 @@ def init(db_path: str) -> None:
     _migrate(_get_conn())
 
 
+def get_db_path() -> str | None:
+    """Return the configured SQLite database path (set by init())."""
+    return _db_path
+
+
 def _get_conn() -> sqlite3.Connection:
     """Thread-local connection (sqlite3 objects can't cross threads)."""
     if not hasattr(_local, "conn") or _local.conn is None:

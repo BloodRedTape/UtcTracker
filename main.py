@@ -8,7 +8,7 @@ from pathlib import Path
 import uvicorn
 
 from core.telegram_tracker import TelegramTracker
-from core import storage, monitoring
+from core import storage, monitoring, backup
 from web.server import create_app
 
 logging.basicConfig(
@@ -83,6 +83,9 @@ async def main():
         discord_tracker = DiscordTracker(config)
         tasks.append(discord_tracker.run())
         log.info("Discord tracker started")
+
+    # Daily database backup → Telegram (no-op if backup section is absent)
+    tasks.append(backup.backup_scheduler_loop(config))
 
     log.info("Dashboard available at http://%s:%d", host, port)
     log.info("Data directory: %s", data_dir)
