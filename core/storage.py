@@ -415,6 +415,24 @@ def get_events_count(user_id: int) -> int:
     ).fetchone()[0]
 
 
+def delete_events_by_source(user_id: int, source: str) -> int:
+    """Delete all events for a user from one source. Returns rows deleted.
+
+    Also clears that source's per-source status column and recomputes the
+    combined current_status, so a deleted source can't leave a stale "online".
+    """
+    conn = _get_conn()
+    cur = conn.execute(
+        "DELETE FROM events WHERE user_id = ? AND source = ?", (user_id, source)
+    )
+    deleted = cur.rowcount
+    col = _status_column(source)
+    conn.execute(f"UPDATE users SET {col} = NULL WHERE user_id = ?", (user_id,))
+    conn.execute(_RECOMPUTE_CURRENT_STATUS, (user_id,))
+    conn.commit()
+    return deleted
+
+
 # ── Sleep Periods ──────────────────────────────────────
 
 def replace_sleep_periods(user_id: int, periods: list[SleepPeriod]) -> None:

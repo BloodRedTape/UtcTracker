@@ -9,8 +9,12 @@ timestamps are rejected on purpose: you state the wall-clock time *and* the zone
 it was in, and the tool converts to the UTC that the DB stores.
 
 Usage:
+    # add an interval
     python add_manual.py <data_dir> --user <ident> \\
         --from "2026-07-07 23:00 +03:00" --to "2026-07-08 01:30 +03:00"
+
+    # delete ALL manual events for a user
+    python add_manual.py <data_dir> --user <ident> --clear
 
 `<ident>` resolves, in order: internal user_id → telegram_id → discord_id →
 label (case-insensitive). Use --dry-run to preview without writing.
@@ -104,32 +108,39 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("data_dir", help="Directory holding config.json and nickutc.db")
     p.add_argument("--user", required=True,
                    help="user_id, telegram_id, discord_id, or label")
-    p.add_argument("--from", dest="from_ts", required=True, metavar="TS",
+    p.add_argument("--from", dest="from_ts", metavar="TS",
                    help='Interval start WITH offset, e.g. "2026-07-07 23:00 +03:00"')
-    p.add_argument("--to", dest="to_ts", required=True, metavar="TS",
+    p.add_argument("--to", dest="to_ts", metavar="TS",
                    help='Interval end WITH offset, e.g. "2026-07-08 01:30 +03:00"')
+    p.add_argument("--clear", action="store_true",
+                   help="Delete ALL manual events for the user (ignores --from/--to)")
     p.add_argument("--dry-run", action="store_true",
-                   help="Show what would be written without touching the DB")
-    return p.parse_args()
+                   help="Show what would be written/deleted without touching the DB")
+    args = p.parse_args()
+
+    if not args.clear and (args.from_ts is None or args.to_ts is None):
+        p.error("either --clear, or both --from and --to, are required")
+    return args
 
 
 def main() -> int:
     args = parse_args()
     data_dir = str(Path(args.data_dir).resolve())
 
-    try:
-        start_utc = parse_offset_ts(args.from_ts)
-        end_utc = parse_offset_ts(args.to_ts)
-    except ValueError as e:
-        print(f"error: {e}", file=sys.stderr)
-        return 2
-
-    if end_utc <= start_utc:
-        print(
-            f"error: --to ({end_utc}) must be strictly after --from ({start_utc})",
-            file=sys.stderr,
-        )
-        return 2
+    # Parse timestamps up front (add mode only) so bad input fails before DB I/O.
+    if not args.clear:
+        try:
+            start_utc = parse_offset_ts(args.from_ts)
+            end_utc = parse_offset_ts(args.to_ts)
+        except ValueError as e:
+            print(f"error: {e}", file=sys.stderr)
+            return 2
+        if end_utc <= start_utc:
+            print(
+                f"error: --to ({end_utc}) must be strictly after --from ({start_utc})",
+                file=sys.stderr,
+            )
+            return 2
 
     config = load_config(data_dir)
     db_path = str(Path(data_dir) / "nickutc.db")
@@ -149,6 +160,23 @@ def main() -> int:
 
     user = storage.get_user(uid)
     print(f"user: user_id={uid} label={user['label']!r}")
+
+    # ── Clear mode ──
+    if args.clear:
+        n = sum(1 for e in storage.get_all_events_for_user(uid) if e.source == "manual")
+        print(f"manual events to delete: {n}")
+        if args.dry_run:
+            print("dry-run: nothing deleted")
+            return 0
+        if n == 0:
+            print("nothing to delete")
+            return 0
+        deleted = storage.delete_events_by_source(uid, "manual")
+        sleep_detector.analyze(uid, config.get("tracking", {}), full=True)
+        print(f"done: {deleted} manual events deleted, sleep analysis recomputed")
+        return 0
+
+    # ── Add mode ──
     print(f"manual online (UTC): {start_utc}  →  {end_utc}")
 
     if args.dry_run:
