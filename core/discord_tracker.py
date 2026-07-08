@@ -130,11 +130,6 @@ class DiscordTracker:
                 source="discord",
             )
 
-            log.info(
-                "Discord user %d [%s]: %s at %s (raw: %s)",
-                dc_id, self._labels.get(internal_uid, "?"), status_str, ts, raw_type,
-            )
-
             if storage.append_event(internal_uid, event_obj):
                 sleep_detector.analyze(internal_uid, self._tracking_config)
 
